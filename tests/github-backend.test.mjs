@@ -10,7 +10,8 @@ import {build} from 'esbuild';
 import {newConfig,bindingKey} from '../src/shared/config.js';
 import {trackerScope,validateSnapshot} from '../src/shared/tracker-model.js';
 import {dispatchGithub} from '../src/mods/mission-control-github/backend.mjs';
-import {GithubDataBridge,HelperQueue,STALE_LOAD_MS,validateGithubReply,githubApiBase,githubProjectFieldsCursor,githubSetupModel} from '../src/mods/mission-control-github/data.js';
+import {GithubDataBridge,HelperQueue,STALE_LOAD_MS,validateGithubReply,githubProjectFieldsCursor,githubSetupModel} from '../src/mods/mission-control-github/data.js';
+import {githubApiBase} from '../src/shared/github-site.js';
 import {prDetailCursor} from '../src/mods/mission-control-github/pull-model.js';
 
 const HEAD='a'.repeat(40),BASE='b'.repeat(40),copy=v=>JSON.parse(JSON.stringify(v));
@@ -155,7 +156,8 @@ test('changing a project or profile clears transient choices and rejects late di
 
 test('native data bundle has no Node/URL/DOM runtime dependency',async()=>{
   const built=await build({entryPoints:['src/mods/mission-control-github/data.js'],bundle:true,write:false,platform:'neutral',format:'iife',globalName:'githubData',logLevel:'silent'}),sandbox={};const api=vm.runInNewContext(built.outputFiles[0].text+';githubData',sandbox,{timeout:2000});
-  assert.equal(api.githubApiBase('https://github.com'),'https://api.github.com');assert.equal(api.githubApiBase('https://tenant.ghe.com'),'https://api.tenant.ghe.com');assert.equal(githubApiBase('https://git.example'),'https://git.example/api/v3');assert.equal(api.githubProjectFieldsCursor({owner:'acme',number:7}),githubProjectFieldsCursor({owner:'acme',number:7}));for(const global of ['process','Buffer','URL','document','window','herdr'])assert.equal(sandbox[global],undefined);
+  const site=await build({entryPoints:['src/shared/github-site.js'],bundle:true,write:false,platform:'neutral',format:'iife',globalName:'githubSite',logLevel:'silent'}),siteApi=vm.runInNewContext(site.outputFiles[0].text+';githubSite',{},{timeout:2000});
+  assert.equal(siteApi.githubApiBase('https://github.com'),'https://api.github.com');assert.equal(siteApi.githubApiBase('https://tenant.ghe.com'),'https://api.tenant.ghe.com');assert.equal(githubApiBase('https://git.example'),'https://git.example/api/v3');assert.equal(api.githubProjectFieldsCursor({owner:'acme',number:7}),githubProjectFieldsCursor({owner:'acme',number:7}));for(const global of ['process','Buffer','URL','document','window','herdr'])assert.equal(sandbox[global],undefined);
 });
 
 test('PR detail presentation never rescans other rows and its immutable membership index follows snapshot/head changes',async t=>{

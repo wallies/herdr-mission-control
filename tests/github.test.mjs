@@ -9,7 +9,7 @@ import Github,{captureGithubTarget,githubLaunchSource} from '../src/mods/mission
 import {newConfig,bindingKey} from '../src/shared/config.js';
 import {trackerScope} from '../src/shared/tracker-model.js';
 import {validateTrackerRequest,publicTrackerError,TrackerError} from '../src/shared/tracker-transport.mjs';
-import {validateGithubConnection} from '../src/mods/mission-control-github/auth.mjs';
+import {validateGithubConnection} from '../src/shared/github-auth.mjs';
 import {githubProgressHint} from '../src/mods/mission-control-github/issues.mjs';
 import {issueCardId} from '../src/shared/issue-board.js';
 import {injectNative,context,trigger,findElement,Element} from './support/native-recording.mjs';

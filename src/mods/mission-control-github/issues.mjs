@@ -1,7 +1,7 @@
 import {createHash} from 'node:crypto';
 import {TrackerError,validateTrackerRequest,httpsUrl,requestJson} from '../../shared/tracker-transport.mjs';
 import {validateRepoBinding,trackerScope,trackerScopeKey,validateIssue,validateSnapshot,issueIdentityKey,mappedStatus} from '../../shared/tracker-model.js';
-import {validateGithubConnection,resolveGithubAuth} from './auth.mjs';
+import {validateGithubConnection,resolveGithubAuth} from '../../shared/github-auth.mjs';
 
 const MAX_AGE=7*86400000,MAX_PAGES=100,PAGE_SIZE=50;
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);

@@ -1,6 +1,6 @@
 import {spawn} from 'node:child_process';
-import {validateConfig} from '../../shared/config.js';
-import {TrackerError,httpsUrl} from '../../shared/tracker-transport.mjs';
+import {validateConfig} from './config.js';
+import {TrackerError,httpsUrl} from './tracker-transport.mjs';
 
 const object=value=>value!==null&&typeof value==='object'&&!Array.isArray(value);
 const exact=(value,required,optional=[])=>object(value)&&required.every(key=>Object.hasOwn(value,key))&&Object.keys(value).every(key=>required.includes(key)||optional.includes(key));

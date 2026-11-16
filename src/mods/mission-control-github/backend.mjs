@@ -3,7 +3,7 @@ import {realpathSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {TrackerError,publicTrackerError,validateTrackerRequest,requestJson} from '../../shared/tracker-transport.mjs';
 import {TrackerModelError,validateRepoBinding,trackerScope,trackerScopeKey,validateSnapshot} from '../../shared/tracker-model.js';
-import {validateGithubConnection,resolveGithubAuth} from './auth.mjs';
+import {validateGithubConnection,resolveGithubAuth} from '../../shared/github-auth.mjs';
 import {fetchGithubIssues,probeGithubApi,githubProgressHint} from './issues.mjs';
 import {fetchGithubPulls} from './pulls.mjs';
 import {validatePullRequest,pullIdentityKey} from './pull-model.js';

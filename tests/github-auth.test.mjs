@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import https from 'node:https';
 import {execFileSync} from 'node:child_process';
-import {githubEndpoints,validateGithubConnection,resolveGithubAuth} from '../src/mods/mission-control-github/auth.mjs';
+import {githubEndpoints,validateGithubConnection,resolveGithubAuth} from '../src/shared/github-auth.mjs';
 import {publicTrackerError,requestJson} from '../src/shared/tracker-transport.mjs';
 
 const profile=(id='work',site='https://github.com')=>({id,kind:'github',site,apiBase:githubEndpoints(site).apiBase,credentialEnv:'WORK_TOKEN'});

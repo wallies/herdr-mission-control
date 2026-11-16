@@ -22,9 +22,6 @@ function profile(value){
   if(env===gh||env&&!/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value.credentialEnv)||gh&&(!exact(value.gh,['host','account'])||!text(value.gh.host,256)||!text(value.gh.account,100)))fail('INVALID_CONNECTION');
   return {...copy(value),site:trackerOrigin(value.site)};
 }
-export function githubApiBase(site){
-  const origin=trackerOrigin(site),host=origin.slice(8);if(host==='github.com')return 'https://api.github.com';if(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.ghe\.com$/.test(host))return 'https://api.'+host;return origin+'/api/v3';
-}
 export function githubProjectFieldsCursor({owner,number}){
   if(!name(owner)||!Number.isInteger(number)||number<1||number>2147483647)fail('INVALID_REQUEST');return JSON.stringify({v:1,kind:'github-project-fields',owner,number});
 }
