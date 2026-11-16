@@ -71,7 +71,7 @@ export class CloudSessions{
     const pending=(async()=>{
       try{
         const wanted=this.candidates();if(!this.connection||!wanted.length)return this.records;
-        const reply=await this.request({v:1,operation:'pulls',connection:this.connection,sessions:wanted.map(r=>({id:r.id,repo:r.repo}))});
+        const reply=await this.request({v:1,operation:'pulls',connection:this.connection,sessions:wanted.map(r=>({id:r.id,repo:r.repo,number:r.pr?.number??null}))});
         if(this.closed)return this.records;
         this.records=await this.store.recordPulls(reply.found,reply.checkedAt);this.pullsError=null;
       }catch(error){if(!this.closed)this.pullsError=error.message||'Pull requests could not be checked.';}

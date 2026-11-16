@@ -54,11 +54,11 @@ test('pull request state is looked up through the helper and shown; merged sessi
   const pr={number:12,url:'https://github.com/acme/botanic/pull/12',state:'open',draft:false,checks:'failure',review:null};
   const f=fixture({sessions:[record(),record({ref:OTHER,title:'Done one'})],helper:input=>({v:1,ok:true,operation:'pulls',checkedAt:9000,found:{[ID]:pr,[OTHER]:{...pr,number:13,url:'https://github.com/acme/botanic/pull/13',state:'merged'}}})});
   await f.flush();
-  assert.deepEqual(f.helperCalls[0],{v:1,operation:'pulls',connection:gh,sessions:[{id:ID,repo:'acme/botanic'},{id:OTHER,repo:'acme/botanic'}]});
+  assert.deepEqual(f.helperCalls[0],{v:1,operation:'pulls',connection:gh,sessions:[{id:ID,repo:'acme/botanic',number:null},{id:OTHER,repo:'acme/botanic',number:null}]});
   assert.ok(texts(f.render()).includes('acme/botanic · Checks failing'));assert.ok(texts(f.render()).includes('acme/botanic · Merged'));
   assert.equal(f.stored()[0].checkedAt,9000);
   f.view.cloud.data.pendingAt=0;f.timers.at(-1).fn(f.cx);await f.flush();
-  assert.deepEqual(f.helperCalls[1].sessions,[{id:ID,repo:'acme/botanic'}],'merged is final');
+  assert.deepEqual(f.helperCalls[1].sessions,[{id:ID,repo:'acme/botanic',number:12}],'merged is final; a found pull request is read by its number');
   f.view.close();
 });
 

@@ -578,14 +578,37 @@ async function sendMessage(input, { spawn: spawn2, env = process.env, timeoutMs 
   }
   fail5(sendFailure((object4(reply) && typeof reply.error === "string" ? reply.error : "") + "\n" + result.stderr));
 }
-var pullQuery = (id, repo) => `is:pr in:body ${id} repo:${repo}`;
-var PULL_FIELDS = "... on PullRequest { number url state isDraft updatedAt reviewDecision statusCheckRollup { state } repository { nameWithOwner } }";
-function pullsDocument(count) {
-  const vars = Array.from({ length: count }, (_, i) => `$q${i}: String!`).join(", ");
-  const fields = Array.from({ length: count }, (_, i) => `s${i}: search(query: $q${i}, type: ISSUE, first: 10) { nodes { ${PULL_FIELDS} } }`).join("\n  ");
+var SCAN_FIRST = 20;
+var SCANS_PER_CALL = 3;
+var PULL_FIELDS = "number url state isDraft updatedAt reviewDecision statusCheckRollup { state } repository { nameWithOwner }";
+function pullsDocument(scans, reads) {
+  const vars = [...scans.flatMap((_, i) => [`$o${i}: String!`, `$n${i}: String!`]), ...reads.flatMap((_, i) => [`$po${i}: String!`, `$pn${i}: String!`, `$pk${i}: Int!`])].join(", ");
+  const fields = [
+    ...scans.map((_, i) => `r${i}: repository(owner: $o${i}, name: $n${i}) { pullRequests(first: ${SCAN_FIRST}, states: [OPEN, CLOSED, MERGED], orderBy: {field: UPDATED_AT, direction: DESC}) { nodes { ${PULL_FIELDS} body } } }`),
+    ...reads.map((_, i) => `p${i}: repository(owner: $po${i}, name: $pn${i}) { pullRequest(number: $pk${i}) { ${PULL_FIELDS} } }`)
+  ].join("\n  ");
   return `query MissionControlCloudPulls(${vars}) {
   ${fields}
 }`;
+}
+function pullsVariables(scans, reads) {
+  const variables = {};
+  scans.forEach((repo, i) => {
+    const [o, n] = repo.split("/");
+    variables["o" + i] = o;
+    variables["n" + i] = n;
+  });
+  reads.forEach((r, i) => {
+    const [o, n] = r.repo.split("/");
+    variables["po" + i] = o;
+    variables["pn" + i] = n;
+    variables["pk" + i] = r.number;
+  });
+  return variables;
+}
+function bodyLinks(body, id) {
+  const tail = id.slice("session_".length), re = new RegExp("claude\\.ai/code/(?:session|cse)_" + tail + "(?![A-Za-z0-9])");
+  return typeof body === "string" && re.test(body);
 }
 var REVIEW = { APPROVED: "approved", CHANGES_REQUESTED: "changesRequested", REVIEW_REQUIRED: "reviewRequired" };
 var CHECKS = { SUCCESS: "success", FAILURE: "failure", ERROR: "failure", PENDING: "pending", EXPECTED: "pending" };
@@ -596,24 +619,31 @@ function parsePull(node, repo) {
   const state = node.state === "MERGED" ? "merged" : node.state === "CLOSED" ? "closed" : node.state === "OPEN" ? "open" : fail5("INVALID_RESPONSE");
   return { pr: { number: node.number, url: "https://github.com/" + node.repository.nameWithOwner + "/pull/" + node.number, state, draft: node.isDraft === true, checks: CHECKS[node.statusCheckRollup?.state] ?? null, review: REVIEW[node.reviewDecision] ?? null }, updated: Date.parse(node.updatedAt) || 0 };
 }
-function choosePull(nodes, repo) {
-  const found = nodes.filter((node) => object4(node) && Object.keys(node).length).map((node) => parsePull(node, repo)).filter(Boolean);
+function choosePull(nodes, repo, id) {
+  const found = nodes.filter((node) => object4(node) && bodyLinks(node.body, id)).map((node) => parsePull(node, repo)).filter(Boolean);
   found.sort((a, b) => (b.pr.state === "open") - (a.pr.state === "open") || b.updated - a.updated);
   return found[0]?.pr ?? null;
 }
-async function findPulls(input, { request = requestJson, env = process.env, ghCommand, clock = () => Date.now(), timeoutMs = 25e3 } = {}) {
+function lookupSessions(input) {
   if (!Array.isArray(input.sessions) || !input.sessions.length || input.sessions.length > MAX_LOOKUPS) fail5("INVALID_REQUEST");
-  let sessions;
   try {
-    sessions = input.sessions.map((s) => {
-      if (!object4(s) || Object.keys(s).length !== 2) throw Error();
+    return input.sessions.map((s) => {
+      if (!object4(s) || Object.keys(s).length !== 3 || !Object.hasOwn(s, "number")) throw Error("shape");
       const { id } = parseSessionRef(s.id);
-      if (id !== s.id || githubRepo(s.repo) !== s.repo) throw Error();
-      return { id, repo: s.repo };
+      if (id !== s.id || githubRepo(s.repo) !== s.repo) throw Error("identity");
+      if (s.number !== null && (!Number.isSafeInteger(s.number) || s.number < 1)) throw Error("number");
+      return { id, repo: s.repo, number: s.number };
     });
   } catch {
     fail5("INVALID_REQUEST");
   }
+}
+function checkData(data) {
+  if (!object4(data) || data.errors !== void 0 && (!Array.isArray(data.errors) || data.errors.length) || !object4(data.data)) fail5("INVALID_RESPONSE");
+  return data.data;
+}
+async function findPulls(input, { request = requestJson, env = process.env, ghCommand, clock = () => Date.now(), timeoutMs = 25e3 } = {}) {
+  const sessions = lookupSessions(input);
   let connection;
   try {
     connection = validateGithubConnection(input.connection);
@@ -622,15 +652,24 @@ async function findPulls(input, { request = requestJson, env = process.env, ghCo
   }
   if (connection.site !== "https://github.com") fail5("NOT_GITHUB_COM");
   const auth = await resolveGithubAuth(connection, { env, ghCommand, timeoutMs: Math.min(8e3, timeoutMs) });
-  const variables = Object.fromEntries(sessions.map((s, i) => ["q" + i, pullQuery(s.id, s.repo)]));
-  const data = await request(auth.graphqlUrl, { allowedOrigin: auth.allowedOrigin, headers: auth.headers, method: "POST", body: { query: pullsDocument(sessions.length), variables }, maxRedirects: 0, timeoutMs, maxBytes: 1048576 });
-  if (!object4(data) || data.errors !== void 0 && (!Array.isArray(data.errors) || data.errors.length) || !object4(data.data)) fail5("INVALID_RESPONSE");
-  const found = {};
-  sessions.forEach((s, i) => {
-    const nodes = data.data["s" + i]?.nodes;
-    if (!Array.isArray(nodes)) fail5("INVALID_RESPONSE");
-    found[s.id] = choosePull(nodes, s.repo);
-  });
+  const call = async (scans, reads2) => checkData(await request(auth.graphqlUrl, { allowedOrigin: auth.allowedOrigin, headers: auth.headers, method: "POST", body: { query: pullsDocument(scans, reads2), variables: pullsVariables(scans, reads2) }, maxRedirects: 0, timeoutMs, maxBytes: 1048576 }));
+  const reads = sessions.filter((s) => s.number !== null), scanning = sessions.filter((s) => s.number === null);
+  const byRepo = /* @__PURE__ */ new Map();
+  for (const s of scanning) if (!byRepo.has(s.repo.toLowerCase())) byRepo.set(s.repo.toLowerCase(), s.repo);
+  const repos = [...byRepo.values()], found = {};
+  for (let start = 0; start < Math.max(repos.length, reads.length ? 1 : 0); start += SCANS_PER_CALL) {
+    const scans = repos.slice(start, start + SCANS_PER_CALL), direct = start === 0 ? reads : [], data = await call(scans, direct);
+    direct.forEach((s, i) => {
+      const node = data["p" + i]?.pullRequest;
+      if (node === void 0) fail5("INVALID_RESPONSE");
+      found[s.id] = node === null ? null : parsePull(node, s.repo)?.pr ?? null;
+    });
+    scans.forEach((repo, i) => {
+      const nodes = data["r" + i] === null ? [] : data["r" + i]?.pullRequests?.nodes;
+      if (!Array.isArray(nodes)) fail5("INVALID_RESPONSE");
+      for (const s of scanning.filter((s2) => s2.repo.toLowerCase() === repo.toLowerCase())) found[s.id] = choosePull(nodes, s.repo, s.id);
+    });
+  }
   return { checkedAt: clock(), found };
 }
 async function dispatchCloud(input, options = {}) {
