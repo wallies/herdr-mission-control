@@ -2,6 +2,7 @@ import {View,div} from 'gpui-kit';
 import {v_flex,h_flex,InputState,Input} from 'gpui-base';
 import * as herdr from 'herdr';
 import {buildAgentModel} from './model.js';
+import {CloudRail} from './cloud-rail.js';
 import {TelemetryBridge} from '../../shared/telemetry.js';
 import {NameOwnership} from '../../shared/name-ownership.js';
 import {usageSourceFingerprint,validateUsageSource} from '../../shared/usage-sources.js';
@@ -27,10 +28,14 @@ export default class MissionControlAgents extends View{
       this.timers.push(cx.timer.every(2000,cx=>this.pollSources(cx)));return;
     }
     this.search=createSearch('Find an agent',value=>edit(s=>{s.query=value;}));this.search.set_value(state().query);this.inputs.push(this.search);
+    this.cloud=new CloudRail(herdr,{spawn:(cx,work)=>this.spawn(cx,work)});
     this.busy=true;this.spawn(cx,async()=>{try{await this.telemetry.sources.refresh();await this.refreshData();}finally{this.busy=false;}});
     this.spawn(cx,async()=>{await this.telemetry.initializeSources();if(!this.closed)await this.refreshData();});
     this.timers.push(cx.timer.every(30000,cx=>this.refresh(cx)));
     this.timers.push(cx.timer.every(2000,cx=>this.pollSources(cx)));
+    this.cloud.sync(cx);
+    // Pull request lookups for cloud sessions run only while the rail is expanded.
+    this.timers.push(cx.timer.every(30000,cx=>{if(!state().collapsed)this.cloud.tick(cx);}));
   }
   input(value,placeholder){const input=InputState.new({placeholder});input.set_value(value);input.on('change',(_e,cx)=>cx.notify());this.inputs.push(input);return input;}
   spawn(cx,work){this.jobs=this.jobs.filter(job=>!job?.is_done?.());const task=cx.spawn(async(cx)=>{try{await work();}catch{this.error='Usage sources or session readings are unavailable. Open source settings to inspect the configured paths.';}if(!this.closed)cx.notify();});this.jobs.push(task);return task;}
@@ -98,14 +103,14 @@ export default class MissionControlAgents extends View{
   render(cx){
     if(this.role==='unavailable')return v_flex().size_full().p(18).gap(12).bg(colors().surface).child(this.sourceHeader('Usage source unavailable')).child(label(this.error,{muted:true}));
     if(this.role==='sources')return this.sourceList();if(this.role==='source-form')return this.sourceForm();
-    const t=colors(),s=state(),model=this.model();herdr.setAgentOrder(model.navigation);
+    const t=colors(),s=state(),model=this.model();herdr.setAgentOrder(model.navigation);this.cloud.sync(cx);const cloud=s.collapsed?null:this.cloud.render();
     return v_flex().id('agents-list').size_full().min_h(0).bg(t.chrome).text_size(12)
-      .child(sectionHeader(MOD,'agents','Agents',model.count,{collapsed:s.collapsed,toggle:()=>edit(s=>{s.collapsed=!s.collapsed;}),actions:[iconButton(MOD,'agents-priority','priority','Priority',()=>edit(s=>{s.mode='priority';}),{active:s.mode==='priority',size:24}),iconButton(MOD,'agents-spaces','spaces','Group by space',()=>edit(s=>{s.mode='spaces';}),{active:s.mode==='spaces',size:24}),iconButton(MOD,'agents-sources','settings','Usage sources',()=>this.openSources(),{size:24})]}))
+      .child(sectionHeader(MOD,'agents','Agents',model.count,{collapsed:s.collapsed,toggle:()=>edit(s=>{s.collapsed=!s.collapsed;}),actions:[iconButton(MOD,'agents-priority','priority','Priority',()=>edit(s=>{s.mode='priority';}),{active:s.mode==='priority',size:24}),iconButton(MOD,'agents-spaces','spaces','Group by space',()=>edit(s=>{s.mode='spaces';}),{active:s.mode==='spaces',size:24}),iconButton(MOD,'agents-cloud-add','cloud','Follow a cloud session',(_e,cx)=>this.cloud.toggleAdd(cx),{active:this.cloud.adding,size:24}),iconButton(MOD,'agents-sources','settings','Usage sources',()=>this.openSources(),{size:24})]}))
       .when(!s.collapsed,e=>e.child(div().px(10).pb(6).child(searchInput(MOD,'agent-search',this.search)))
         .child(v_flex().id('agent-groups').flex_1().min_h(0).px(7).pb(7).gap(5).overflow_y_scrollbar().children(model.groups.map(group=>v_flex().gap(1)
           .child(h_flex().h(23).px(4).gap(6).items_center().child(label(group.label,{muted:true,size:10})).when(Boolean(group.machine),e=>e.child(label(group.machine,{muted:true,size:9}))))
-          .children(group.rows.map(row=>this.row(row))))))
-        .when(!model.rows.length,e=>e.child(div().p(12).text_size(11).text_color(t.dim).child(model.count?'No matching agents.':'No agents running.'))));
+          .children(group.rows.map(row=>this.row(row))))).when(Boolean(cloud),e=>e.child(cloud)))
+        .when(!model.rows.length&&!cloud,e=>e.child(div().p(12).text_size(11).text_color(t.dim).child(model.count?'No matching agents.':'No agents running.'))));
   }
-  close(){this.closed=true;for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.telemetry.close();for(const input of this.inputs)input.release();}
+  close(){this.closed=true;this.cloud?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.telemetry.close();for(const input of this.inputs)input.release();}
 }
