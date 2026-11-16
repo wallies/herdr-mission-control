@@ -56,7 +56,24 @@ function card(props,issue,choices,narrow){
     .child(issueLink(id+'-title',issue.title,issue,onOpenIssue,onInvalid,{title:true,linkValid}))
     .child(h_flex().gap(5).items_center().child(div().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid?caption:'Issue unavailable'))
       .child(h_flex().gap(2).items_center().children(choices.quick.map(program=>programButton(mod,id+'-start-'+program.key,issue,program,onLaunch,onInvalid,reason,linkValid,props.actionVerb)))
-        .child(iconButton(mod,id+'-options','more',reason||(choices.overflow.length?'Choose another agent or launch options':'Launch options'),capturedAction(issue,(captured,cx)=>onOptions(captured,cx),onInvalid),{disabled:!optionsEnabled,size:25}))));
+        .when(Boolean(props.cloud),row=>row.child(cloudButton(props,id,issue,linkValid)))
+        .child(iconButton(mod,id+'-options','more',reason||(choices.overflow.length?'Choose another agent or launch options':'Launch options'),capturedAction(issue,(captured,cx)=>onOptions(captured,cx),onInvalid),{disabled:!optionsEnabled,size:25}))))
+    .when(Boolean(props.cloud),el=>cloudFooter(el,props,id,issue));
+}
+/** Ship in a cloud session: one click only asks; Start on the card's confirm row spends quota. */
+function cloudButton(props,id,issue,linkValid){
+  const cloud=props.cloud,reason=cloud.reason?.(issue)||'',action=(props.actionVerb||'Start')+' '+issue.key+' in a cloud session';
+  return iconButton(props.mod,id+'-cloud','cloud',reason||action,capturedAction(issue,(captured,cx)=>cloud.onAsk(captured,cx),props.onInvalid),{disabled:!linkValid||Boolean(reason),size:25});
+}
+function cloudFooter(el,props,id,issue){
+  const t=colors(),cloud=props.cloud,note=cloud.note?.(issue);
+  if(cloud.asking?.(issue))el=el.child(v_flex().id(id+'-cloud-confirm').gap(6).p(8).rounded(5).border(1).border_color(t.border)
+    .child(div().text_size(11).text_color(t.muted).child('Start a cloud session for '+issue.key+'? It runs on claude.ai and uses your Claude plan.'))
+    .child(h_flex().gap(6).items_center().child(div().flex_1())
+      .child(textButton(id+'-cloud-cancel','Cancel',capturedAction(issue,(captured,cx)=>cloud.onCancel(captured,cx),props.onInvalid)))
+      .child(textButton(id+'-cloud-start','Start',capturedAction(issue,(captured,cx)=>cloud.onConfirm(captured,cx),props.onInvalid),{primary:true}))));
+  if(note)el=el.child(div().id(id+'-cloud-note').text_size(10).text_color(note.error?t.blocked:t.muted).child(note.text));
+  return el;
 }
 function statusFilter(id,title,count,active,action,{disabled=false}={}){
   const t=colors();let el=h_flex().id(id).h(25).px(7).gap(5).rounded(4).items_center().text_size(11).text_color(disabled?t.dim:active?t.accent:t.muted).bg(active?t.selected:'#00000000').role('button').accessibility_label(title+' filter');

@@ -18,11 +18,13 @@ To do searches `<base> is:unstarted` and In progress searches `<base> is:started
 
 Errors keep the cached cards and name the fix: Claude Code not found (enter its full path in Set up), the $0.10 run budget reached, Shortcut sign-in needed (run /mcp in Claude Code and sign in to shortcut), a failed run, or a run stopped after two minutes.
 
+Beside the Ship buttons, a cloud button ships the story in a Claude Code cloud session. One click only asks: the card shows a confirm row (Start / Cancel), because a cloud session uses the Claude plan. Start needs a local checkout whose origin is on github.com. It opens a tab in the card's space, in that checkout, running `claude --cloud "Use the ship-tickets skill to ship sc-<id>."` (the same task as Ship, no story body). That command is interactive and prints no machine-readable result, so the board reads the tab's screen every 3 seconds, at most 60 times, for the claude.ai/code session link, then records the session in `appHome()/mission-control/cloud-sessions.json` for the Agents rail. A sign-in error, a closed tab or no link in three minutes is shown on the card, and nothing is recorded.
+
 ## Built from
 
 Ship only `mods/mission-control-shortcut/` containing bundled native ESM `main.js`, `mod.json`, self-contained Node ESM `backend.mjs`, local SVG `assets/` and `NOTICE.md`; place this recipe and a real `preview.png` beside `mods/`. Default `props.view` is `panel`; support `setup`, `launch`, `settings` and `menu`, plus `hideHeader`, `scope: "space" | "all"` and immutable repository `target` props.
 
-**Access disclosure:** reads/writes Mission Control configuration and launch/session/name journals outside the mod folder. Runs local Node.js 22+, Claude Code (`claude -p` with haiku, a $0.10 budget, only the Shortcut MCP server at https://mcp.shortcut.com/mcp and one read tool), Git/Python 3 and the selected agent on the execution host. Creates worktrees and sends the story task to that agent. Opens the story URL with the system browser. Stores no credentials; Claude Code keeps its own Shortcut sign-in.
+**Access disclosure:** reads/writes Mission Control configuration and launch/session/name journals outside the mod folder. Runs local Node.js 22+, Claude Code (`claude -p` with haiku, a $0.10 budget, only the Shortcut MCP server at https://mcp.shortcut.com/mcp and one read tool), Git/Python 3 and the selected agent on the execution host. Creates worktrees and sends the story task to that agent. Opens the story URL with the system browser. A confirmed cloud ship runs `claude --cloud` in a tab, reads that tab with `hc read`, and writes the cloud session list. Stores no credentials; Claude Code keeps its own Shortcut sign-in.
 
 ## Watch out
 

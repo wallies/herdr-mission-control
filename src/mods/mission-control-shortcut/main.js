@@ -7,6 +7,7 @@ import {resolveSpaceRepo,launchTarget} from '../../shared/space-repo.js';
 import {createLaunchIO} from '../../shared/launch.js';
 import {LaunchDialog,openLaunchDialog,quickStart} from '../../shared/launch-dialog.js';
 import {IssueBoardState,renderIssueBoard} from '../../shared/issue-board.js';
+import {startCloudSession} from '../../shared/cloud-launch.js';
 import {ShortcutDataBridge,SNAPSHOT_STATE,shortcutConnection} from './data.js';
 import {colors,label,icon,iconButton,textButton} from '../../shared/ui.js';
 
@@ -52,7 +53,7 @@ export async function captureShortcutTarget(value,options={}){
 
 export default class MissionControlShortcut extends View{
   init(_props,cx){
-    this.props=herdr.props()||{};this.role=this.props.view||'panel';this.closed=false;this.jobs=[];this.timers=[];this.inputs=[];this.originPanes=new Map();this.tools=new Map();this.toolTimes=new Map();this.toolPending=new Set();this.launching=new Set();this.contextEpoch=0;this.formEpoch=0;this.seq=0;this.error=null;this.instance=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);this.io=createLaunchIO(herdr);
+    this.props=herdr.props()||{};this.role=this.props.view||'panel';this.closed=false;this.jobs=[];this.timers=[];this.inputs=[];this.originPanes=new Map();this.tools=new Map();this.toolTimes=new Map();this.toolPending=new Set();this.launching=new Set();this.cloudLaunching=new Set();this.cloudNotes=new Map();this.cloudAsking=null;this.contextEpoch=0;this.formEpoch=0;this.seq=0;this.error=null;this.instance=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);this.io=createLaunchIO(herdr);
     if(['launch','settings','menu'].includes(this.role)){this.dialog=new LaunchDialog(MOD,this.props,herdr);this.dialog.init(cx);return;}
     this.data=new ShortcutDataBridge(this.io,{store:snapshotStore,onChange:()=>{if(!this.closed)herdr.setShared(DATA_EVENT,{owner:this.instance,revision:++this.seq});}});
     if(this.role==='setup'){
@@ -112,6 +113,27 @@ export default class MissionControlShortcut extends View{
         if(options)openLaunchDialog(MOD,herdr,{view:'launch',target:captured.target,...captured.target,source:captured.source,...(toolKey?{toolKey}:{})});
         else{const result=await quickStart({target:captured.target,source:captured.source,toolKey,worktree:true},this.io);if(!result.ok)this.error=result.message;}
       }finally{this.launching.delete(key);}
+    });
+  }
+  cloudReason(issue){
+    if(this.cloudLaunching.has(issueIdentityKey(issue)))return 'Starting a cloud session…';
+    if(issue.repoBinding.machine!==null)return 'Cloud sessions start from a checkout on this computer.';
+    return this.launchReason(issue);
+  }
+  askCloud(issue,cx){this.cloudAsking=issueIdentityKey(issue);this.cloudNotes.delete(this.cloudAsking);cx.notify();}
+  cancelCloud(_issue,cx){this.cloudAsking=null;cx.notify();}
+  /** Confirmed on the card: opens a tab running `claude --cloud <ship task>`, then records the session. */
+  startCloud(value,cx){
+    let issue;try{issue=validateIssue(value);shortcutLaunchSource(issue);}catch{this.error='This story is unavailable. Refresh Shortcut.';cx.notify();return;}
+    const key=issueIdentityKey(issue);this.cloudAsking=null;if(this.cloudLaunching.has(key))return;
+    this.cloudLaunching.add(key);this.cloudNotes.set(key,{text:'Starting a cloud session in a new tab…'});const all=this.all,resolved=this.resolved?copy(this.resolved):null,originPane=resolved?this.originPanes.get(resolved.spaceId):null;cx.notify();
+    return this.spawn(cx,async(taskCx)=>{
+      try{
+        const captured=await captureShortcutTarget(issue,{all,resolved,originPane,isCurrent:()=>!this.closed});
+        await startCloudSession({herdr,io:this.io,target:captured.target,task:shipTask(issue.key),title:issue.key+' '+issue.title,source:{kind:'shortcut',key:issue.key},sleep:ms=>taskCx.sleep(ms),isCurrent:()=>!this.closed});
+        this.cloudNotes.set(key,{text:'Cloud session started. Follow it in the Agents rail.'});
+      }catch(error){if(!this.closed)this.cloudNotes.set(key,{text:error?.code?error.message:'The cloud session could not start.',error:true});}
+      finally{this.cloudLaunching.delete(key);}
     });
   }
   openIssue(value,cx){let issue;try{issue=validateIssue(value);shortcutLaunchSource(issue);}catch{this.error='This story link is unavailable. Refresh Shortcut.';cx.notify();return;}
@@ -187,7 +209,7 @@ export default class MissionControlShortcut extends View{
     const t=colors(),root=v_flex().id('shortcut-panel').size_full().min_h(0).bg(t.surface);
     if(!this.props.hideHeader)root.child(this.header('Shortcut'));
     if(this.error)root.child(div().id('shortcut-action-error').px(12).py(7).text_size(11).text_color(t.blocked).child(this.error));
-    return root.child(renderIssueBoard({id:'shortcut-board',mod:MOD,state:this.board,view:this.data.view(),columns:COLUMNS,manualRefresh:true,actionVerb:'Ship',preferences:this.config?.preferences.launch||{},toolsForMachine:machine=>this.tools.get(machineKey(machine))||[],launchReason:issue=>this.launchReason(issue),onOpenIssue:(issue,eventCx)=>this.openIssue(issue,eventCx),onLaunch:(issue,key,eventCx)=>this.startIssue(issue,key,eventCx),onOptions:(issue,eventCx)=>this.startIssue(issue,undefined,eventCx,{options:true}),onRefresh:(_value,eventCx)=>this.refresh(eventCx),onSetup:(binding,eventCx)=>this.openSetup(binding,eventCx),onScopeChange:(all,eventCx)=>this.setScope(all,eventCx),onInvalid:(message,eventCx)=>{this.error=message;eventCx.notify();}},cx));
+    return root.child(renderIssueBoard({id:'shortcut-board',mod:MOD,state:this.board,view:this.data.view(),columns:COLUMNS,manualRefresh:true,actionVerb:'Ship',preferences:this.config?.preferences.launch||{},toolsForMachine:machine=>this.tools.get(machineKey(machine))||[],launchReason:issue=>this.launchReason(issue),onOpenIssue:(issue,eventCx)=>this.openIssue(issue,eventCx),onLaunch:(issue,key,eventCx)=>this.startIssue(issue,key,eventCx),onOptions:(issue,eventCx)=>this.startIssue(issue,undefined,eventCx,{options:true}),cloud:{reason:issue=>this.cloudReason(issue),asking:issue=>this.cloudAsking===issueIdentityKey(issue),note:issue=>this.cloudNotes.get(issueIdentityKey(issue)),onAsk:(issue,eventCx)=>this.askCloud(issue,eventCx),onCancel:(issue,eventCx)=>this.cancelCloud(issue,eventCx),onConfirm:(issue,eventCx)=>this.startCloud(issue,eventCx)},onRefresh:(_value,eventCx)=>this.refresh(eventCx),onSetup:(binding,eventCx)=>this.openSetup(binding,eventCx),onScopeChange:(all,eventCx)=>this.setScope(all,eventCx),onInvalid:(message,eventCx)=>{this.error=message;eventCx.notify();}},cx));
   }
   close(){if(this.closed)return;this.closed=true;this.contextEpoch++;this.data?.close();this.board?.close();this.dialog?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.commandTask?.cancel?.();for(const input of this.inputs)input.release();}
 }
