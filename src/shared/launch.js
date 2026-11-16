@@ -9,6 +9,9 @@ const clone=v=>JSON.parse(JSON.stringify(v));
 export class LaunchError extends Error {constructor(code,message,recovery){super(message);this.code=code;this.recovery=recovery;}}
 const fail=(code,message,recovery)=>{throw new LaunchError(code,message,recovery);};
 const text=(v,name,max=256)=>{if(typeof v!=='string'||!v||v.length>max||['__proto__','constructor','prototype'].includes(v)||/[\u0000-\u001f]/.test(v))fail('INVALID_LAUNCH',`Invalid ${name}`);return v;};
+/** A source task may span lines (\n only); every other control character stays rejected. */
+export const TASK_MAX=4000;
+const validTask=v=>typeof v==='string'&&v.length>0&&v.length<=TASK_MAX&&!/[\u0000-\u0009\u000b-\u001f\u007f]/.test(v);
 const now=io=>io.clock?io.clock():Date.now();
 const uuid=()=>{const a=Array.from({length:16},()=>Math.floor(Math.random()*256));a[6]=(a[6]&15)|64;a[8]=(a[8]&63)|128;return a.map((n,i)=>([4,6,8,10].includes(i)?'-':'')+n.toString(16).padStart(2,'0')).join('');};
 function sourceIdentity(source){return source?JSON.stringify([source.kind,source.connectionId,source.site,source.id]):null;}
@@ -21,7 +24,7 @@ export function validateLaunchRequest(value){
   if(!r.worktree&&(r.worktreePath!==undefined||r.branch!==undefined))fail('INVALID_LAUNCH','Path/branch overrides require a new worktree');
   if(r.worktreePath!==undefined)r.worktreePath=canonicalRepoPath(r.worktreePath);
   if(r.branch!==undefined)text(r.branch,'branch',200);
-  if(r.source){for(const f of ['kind','connectionId','site','id','key','title','url'])text(r.source[f],`source ${f}`,f==='title'?512:2048);if(!['jira','github','github-pr','gitlab','gitlab-mr','shortcut'].includes(r.source.kind)||!/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site)||!/^https:\/\/[^\s@]+$/.test(r.source.url))fail('INVALID_LAUNCH','Invalid source identity/URL/site');if(r.source.body!==undefined&&(typeof r.source.body!=='string'||r.source.body.length>64000))fail('INVALID_LAUNCH','Source body exceeds the supported limit');if(r.source.task!==undefined&&(typeof r.source.task!=='string'||!r.source.task||r.source.task.length>2048||/[\u0000-\u001f\u007f]/.test(r.source.task)))fail('INVALID_LAUNCH','Source task must be one line of at most 2048 characters');}
+  if(r.source){for(const f of ['kind','connectionId','site','id','key','title','url'])text(r.source[f],`source ${f}`,f==='title'?512:2048);if(!['jira','github','github-pr','gitlab','gitlab-mr','shortcut'].includes(r.source.kind)||!/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site)||!/^https:\/\/[^\s@]+$/.test(r.source.url))fail('INVALID_LAUNCH','Invalid source identity/URL/site');if(r.source.body!==undefined&&(typeof r.source.body!=='string'||r.source.body.length>64000))fail('INVALID_LAUNCH','Source body exceeds the supported limit');if(r.source.task!==undefined&&!validTask(r.source.task))fail('INVALID_LAUNCH',`Source task must be at most ${TASK_MAX} characters, with new lines but no other control characters`);}
   r.options=validateToolOptions(Object.fromEntries(['model','reasoning','instructions','skill','subagents'].filter(k=>r[k]!==undefined).map(k=>[k,r[k]])));
   return r;
 }

@@ -11,12 +11,21 @@ import {colors,label,iconButton,textButton,toolIcon,createSearch,searchInput,emp
 export function openLaunchDialog(mod,herdr,{spaceId,machine=null,source,target,toolKey,view='launch'}={}){
   return herdr.openOverlay({mod,kind:'dialog',width:560,height:660,props:{view,spaceId,machine,source,target,toolKey}});
 }
-/** `worktree` overrides the saved default for sources that always need their own checkout. */
-export async function quickStart({target,source,toolKey,worktree},io){
+/**
+ * `worktree` overrides the saved default for sources that always need their own checkout.
+ * `worktreeName` names that new worktree, as the launch form's optional name does.
+ */
+export async function quickStart({target,source,toolKey,worktree,worktreeName},io){
   try{
     const config=(await readConfig(io)).value,p=validateLaunchPreferences(config.preferences.launch),tools=await io.knownAgents({on:target.machine});
     if(!toolChoices(tools,p).quick.some(t=>t.key===toolKey))return {ok:false,code:'SHORTCUT_UNAVAILABLE',message:'This shortcut is no longer pinned and installed on the destination machine.'};
-    return launch({...newIntent(),...target,toolKey,source,worktree:worktree??p.worktree,...(p.tools[toolKey]||{})},io);
+    const request={...newIntent(),...target,toolKey,source,worktree:worktree??p.worktree,...(p.tools[toolKey]||{})};
+    if(worktreeName!==undefined){
+      if(!request.worktree)return {ok:false,code:'INVALID_LAUNCH',message:'A worktree name needs a new worktree.'};
+      const spaceName=io.spaces().find(s=>s.id===target.spaceId&&machineIdentity(s.machine)===machineIdentity(target.machine))?.name;
+      Object.assign(request,resolveWorktreeChoice(request,{spaceName,value:worktreeName}));
+    }
+    return launch(request,io);
   }catch(e){return {ok:false,code:e.code||'LAUNCH_SETTINGS',message:e.code?e.message:'Agent shortcuts could not be loaded.'};}
 }
 

@@ -92,7 +92,15 @@ test('a source with its own task sends exactly that task, with no wrapper or sou
  const f=await fixture(t),task='Use the review-this skill on https://jira.example.invalid/browse/WEB-142.';
  const sent=await launch({...request(f.repo,'exact-task'),source:{...issue(),task}},f.io);assert.equal(sent.ok,true,JSON.stringify(sent));
  const call=f.calls.find(c=>c.cmd==='herdr-app'&&c.args[0]==='do');assert.equal(JSON.parse(call.args[2]).task,task);
- for(const bad of ['',task+'\nmore','x'.repeat(2049),7]){const result=await launch({...request(f.repo,'bad-task-'+String(bad).length),source:{...issue(),id:'1000'+String(bad).length,task:bad}},f.io);assert.equal(result.code,'INVALID_LAUNCH',JSON.stringify(result));}
+ const bads=['',task+'\tmore',task+'\r\nmore',task+'\u0000',task+'\u001b[31m',task+'\u007f','x'.repeat(4001),7];
+ for(const [n,bad] of bads.entries()){const result=await launch({...request(f.repo,'bad-task-'+n),source:{...issue(),id:'2000'+n,task:bad}},f.io);assert.equal(result.code,'INVALID_LAUNCH',JSON.stringify(result));}
+});
+test('a source task may span lines and reach the 4000-character cap; it is sent exactly',async t=>{
+ const f=await fixture(t);
+ for(const [n,task] of ['Use the review-this skill on https://github.com/acme/web/pull/7. Check the migration.\nThen the API.','x'.repeat(4000)].entries()){
+  const sent=await launch({...request(f.repo,'multi-'+n),source:{...issue(),id:'3000'+n,key:'WEB-3'+n,task}},f.io);assert.equal(sent.ok,true,JSON.stringify(sent));
+  const call=f.calls.filter(c=>c.cmd==='herdr-app'&&c.args[0]==='do').at(-1);assert.equal(JSON.parse(call.args[2]).task,task);
+ }
 });
 test('malformed acknowledgment retains uncertain creation and a retry never spawns a second tab',async t=>{
  const f=await fixture(t);f.malform();const a=await launch(request(f.repo),f.io);assert.equal(a.ok,false);assert.equal(a.code,'MALFORMED_ACK');assert.equal(f.count(),1);
