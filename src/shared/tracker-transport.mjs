@@ -10,6 +10,10 @@ const messages={
   STATUS_MAPPING_REQUIRED:'Configure the source status mapping before using this board.',
   CLI_UNAVAILABLE:'The configured tracker CLI is not installed locally. Select an installed command or another adapter.',
   ADAPTER_FAILED:'The configured tracker program failed. Check its profile and read-only JSON bridge.',
+  CLAUDE_UNAVAILABLE:'Claude Code (the claude command) was not found. Install it, or enter the absolute path to claude in Set up, because the app may not search ~/.local/bin.',
+  CLAUDE_FAILED:'The Claude Code run failed. Run claude in a terminal to check that it is signed in, then refresh.',
+  BUDGET_EXHAUSTED:'The Claude Code run reached its $0.10 budget before the stories loaded. Narrow the saved query and refresh.',
+  SHORTCUT_SIGN_IN_REQUIRED:'Claude Code is not signed in to Shortcut. In Claude Code, run /mcp and sign in to shortcut, then refresh.',
   MCP_UNAVAILABLE:'The selected MCP server is unavailable. Check its transport and credential references, then reconnect.',
   MCP_TOOL_UNAVAILABLE:'The configured MCP search tool is missing or changed. Reconnect and select its current tool mapping.',
   MCP_TOOL_NOT_READ_ONLY:'Select a read-only MCP issue-search tool before loading this board.',
@@ -87,14 +91,24 @@ export function validateJiraConnection(input){
   }
   return c;
 }
+export const SHORTCUT_SITE='https://app.shortcut.com';
+/** Shortcut through a local Claude Code run and its own Shortcut MCP login; no secret is stored. */
+export function validateShortcutConnection(input){
+  jsonData(input,'INVALID_CONNECTION');if(!id(input?.id))fail('INVALID_CONNECTION');const c=clone(input);c.site=origin(c.site);
+  if(!exact(c,['id','kind','site','execution'])||c.kind!=='claude'||c.site!==SHORTCUT_SITE)fail('INVALID_CONNECTION');
+  if(!exact(c.execution,['machine'],['command'])||c.execution.machine!==null){if(c.execution?.machine!==undefined&&c.execution.machine!==null)fail('UNSUPPORTED_INTEGRATION_HOST');fail('INVALID_CONNECTION');}
+  const command=c.execution.command;
+  if(command!==undefined&&(!text(command,4096)||command!=='claude'&&!command.startsWith('/')||!/(?:^|\/)claude$/.test(command)||command.split('/').includes('..')))fail('INVALID_CONNECTION');
+  return c;
+}
 export function validateTrackerRequest(input,{connectionValidator=validateJiraConnection,source='jira'}={}){
-  const operations={jira:['issues','probe'],github:['issues','pulls','probe'],gitlab:['issues','merges','probe']};
+  const operations={jira:['issues','probe'],github:['issues','pulls','probe'],gitlab:['issues','merges','probe'],shortcut:['issues','probe']};
   jsonData(input,'INVALID_REQUEST');if(!exact(input,['v','operation','connection','binding'],['cursor'])||input.v!==1||!Object.hasOwn(operations,source)||!operations[source].includes(input.operation)||Buffer.byteLength(JSON.stringify(input))>65536||input.cursor!==undefined&&input.cursor!==null&&!text(input.cursor,8192))fail('INVALID_REQUEST');
   const connection=connectionValidator(input.connection),binding=clone(input.binding);
   if(!object(binding)||!Object.hasOwn(binding,'machine')||!(binding.machine===null||text(binding.machine,128)))fail('INVALID_REQUEST');
   try{if(canonicalRepoPath(binding.repoRoot)!==binding.repoRoot)fail('INVALID_REQUEST');}catch{fail('INVALID_REQUEST');}
   const selected=binding[source];
-  if(selected!==undefined&&(selected?.connectionId!==connection.id||source==='jira'&&(!text(selected.project,256)&&!text(selected.jql,8192))||source==='github'&&(!text(selected.owner,128)||!text(selected.repo,128))))fail('INVALID_REQUEST');
+  if(selected!==undefined&&(selected?.connectionId!==connection.id||source==='jira'&&(!text(selected.project,256)&&!text(selected.jql,8192))||source==='github'&&(!text(selected.owner,128)||!text(selected.repo,128))||source==='shortcut'&&(!text(selected.owner,128)||!text(selected.workspace,64)||selected.query!==undefined&&!text(selected.query,8192))))fail('INVALID_REQUEST');
   if(source==='gitlab'&&selected!==undefined){try{gitlabProjectPath(selected.projectPath);}catch{fail('INVALID_REQUEST');}}
   if(input.operation!=='probe'&&!selected)fail('INVALID_REQUEST');
   return {...clone(input),connection,binding};

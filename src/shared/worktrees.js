@@ -32,7 +32,7 @@ export function resolveWorktreeChoice(request,{spaceName,value='',branch=''}={})
 function sourceIdentity(source){
   if(!source)return null;
   for(const field of ['kind','connectionId','site','id','key'])text(source[field],`source ${field}`,field==='site'?2048:512);
-  if(!['jira','github','github-pr','gitlab','gitlab-mr'].includes(source.kind)||!/^https:\/\/[^\s/@?#]+\/?$/.test(source.site))fail('INVALID_WORKTREE','Unsupported tracker source identity');
+  if(!['jira','github','github-pr','gitlab','gitlab-mr','shortcut'].includes(source.kind)||!/^https:\/\/[^\s/@?#]+\/?$/.test(source.site))fail('INVALID_WORKTREE','Unsupported tracker source identity');
   if(source.url!==undefined||['gitlab','gitlab-mr'].includes(source.kind)){text(source.url,'source URL',2048);if(!/^https:\/\/[^\s@]+$/.test(source.url))fail('INVALID_WORKTREE','Unsupported tracker source URL');}
   return JSON.stringify([source.kind,source.connectionId,source.site,source.id]);
 }

@@ -13,7 +13,7 @@ const fail=(code,message)=>{throw new TabNamesError(code,message);};
 export const NAME_LIMITS=Object.freeze({displayPx:280,charPx:7,chars:80,titleChars:200,storedChars:1024,entries:1000,retired:64,bytes:512*1024});
 /** settleMs: a new name must be seen in two polls. pendingMs: how long a stale snapshot may still show the old name. */
 export const NAME_TIMING=Object.freeze({settleMs:2500,pendingMs:10000,retryMs:5000,maxRetryMs:60000,tries:3,intentMs:15000,missingMs:30000,unavailableMs:7*86400000,retiredMs:86400000});
-export const SOURCE_KINDS=Object.freeze(['jira','github','github-pr','gitlab','gitlab-mr']);
+export const SOURCE_KINDS=Object.freeze(['jira','github','github-pr','gitlab','gitlab-mr','shortcut']);
 const clone=v=>JSON.parse(JSON.stringify(v));
 const freeze=v=>{if(v&&typeof v==='object'&&!Object.isFrozen(v)){for(const c of Object.values(v))freeze(c);Object.freeze(v);}return v;};
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
@@ -27,8 +27,8 @@ const chars=s=>Array.from(s);
 export function clip(value,max=NAME_LIMITS.chars){const a=chars(value);return a.length<=max?value:a.slice(0,Math.max(1,max-1)).join('').trimEnd()+'…';}
 /** Display text only: control/bidi/zero-width characters go, whitespace collapses, length is bounded. */
 export function cleanText(value,max=NAME_LIMITS.chars){if(typeof value!=='string')return null;const s=value.replace(CONTROL,' ').replace(INVISIBLE,'').replace(/\s+/g,' ').trim();return s?clip(s,max):null;}
-const KEY=/^[A-Z][A-Z0-9_]{0,30}(?:-[A-Z]{1,8})?-[1-9][0-9]{0,11}$/;
-/** Jira ABC-123, GitHub GH-42 / GH-PR-42, GitLab GL-142 / GL-MR-42. Anything else is not an identity. */
+const KEY=/^(?:[A-Z][A-Z0-9_]{0,30}(?:-[A-Z]{1,8})?-[1-9][0-9]{0,11}|sc-[1-9][0-9]{0,15})$/;
+/** Jira ABC-123, GitHub GH-42 / GH-PR-42, GitLab GL-142 / GL-MR-42, Shortcut sc-123. Anything else is not an identity. */
 export const issueKey=v=>typeof v==='string'&&KEY.test(v)?v:null;
 const stripKey=(title,key)=>{const m=title.match(new RegExp('^[\\[(]?'+key.replace(/[-]/g,'\\-')+'[\\])]?(?:[\\s:·–—-]+|$)'));return m?title.slice(m[0].length).trim()||null:title;};
 /** "KEY title" with the key always kept whole at the front; only the title part is shortened. */

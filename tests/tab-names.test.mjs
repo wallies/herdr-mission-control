@@ -31,7 +31,7 @@ test('every launch origin keeps its task identity and tool; shells fall back to 
   assert.equal(name([pane(t,{key:'agent',name:'my-bot',agent:true,status:'idle'})]).name,'my-bot');
   assert.equal(name([pane(t,{key:'agent',name:null,agent:true,status:'idle',app:null})]).name,'Agent');
   // Issue, PR and MR launches keep their identity alongside the task title, never duplicated.
-  const cases=[['jira','ABC-123'],['github','GH-42'],['github-pr','GH-PR-42'],['gitlab','GL-142'],['gitlab-mr','GL-MR-42']];
+  const cases=[['jira','ABC-123'],['github','GH-42'],['github-pr','GH-PR-42'],['gitlab','GL-142'],['gitlab-mr','GL-MR-42'],['shortcut','sc-4821']];
   for(const [kind,key]of cases){
     const meta={key,title:'Fix login',kind,toolKey:'codex'};
     assert.deepEqual([name([codex(t)],meta).name,name([codex(t)],meta).basis],[key+' Fix login','task'],key);
@@ -74,8 +74,8 @@ test('names are bounded, safe text and keep issue/PR keys inside the 280px label
   assert.equal(reportedTitle('⠂ Plan the migration'),'Plan the migration');
   // Shell/program self-reports are lowercase; English titles that begin with the same word are real titles.
   for(const shell of ['-zsh','zsh: ~/repo','login','bash'])assert.equal(reportedTitle(shell),null,shell);for(const title of ['Login loop','Shell script cleanup','Fish order bug'])assert.equal(reportedTitle(title),title);
-  for(const bad of ['gl-1','GL-0','GL-142; rm','GH-PR-','X',' GL-1',null,42])assert.equal(issueKey(bad),null,String(bad));
-  for(const good of ['ABC-123','GH-42','GH-PR-42','GL-142','GL-MR-42','A2_B-9'])assert.equal(issueKey(good),good);
+  for(const bad of ['gl-1','GL-0','GL-142; rm','GH-PR-','sc-0','SC-12x','sc-','X',' GL-1',null,42])assert.equal(issueKey(bad),null,String(bad));
+  for(const good of ['ABC-123','GH-42','GH-PR-42','GL-142','GL-MR-42','A2_B-9','sc-4821'])assert.equal(issueKey(good),good);
   assert.equal(composeName('not a key','Title'),'Title');assert.equal(composeName('GL-1420','GL-142 x'),'GL-1420 GL-142 x');
   assert.equal(folderName('C:\\work\\repo\\'),'repo');assert.equal(folderName('/a/\u0007b'),null);
 });

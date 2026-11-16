@@ -83,11 +83,12 @@ function validateGitlabSelection(value) {
 function validateBinding(binding, key, connections) {
   if (!object(binding)) fail('Repository bindings must be objects.');
   if (bindingKey(binding.machine, binding.repoRoot) !== key) fail('A repository binding does not match its machine/root key.');
-  for (const source of ['jira', 'github', 'gitlab']) {
+  for (const source of ['jira', 'github', 'gitlab', 'shortcut']) {
     if (binding[source] === undefined) continue;
     const selected = binding[source];
     if (!object(selected) || typeof selected.connectionId !== 'string' || !Object.hasOwn(connections, selected.connectionId)) fail('A tracker binding must reference an existing connection.');
     if (source === 'jira' && !selected.project && !selected.jql) fail('A Jira binding needs a project or JQL filter.');
+    if (source === 'shortcut' && (typeof selected.owner !== 'string' || !selected.owner || typeof selected.workspace !== 'string' || !selected.workspace)) fail('A Shortcut binding needs its owner and workspace.');
     if (source === 'github' && (typeof selected.owner !== 'string' || !selected.owner || typeof selected.repo !== 'string' || !selected.repo)) fail('A GitHub binding needs its owner and repository.');
     if (source === 'gitlab') validateGitlabSelection(selected);
   }

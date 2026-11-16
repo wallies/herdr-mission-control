@@ -11,7 +11,8 @@ const id=v=>text(v,96)&&/^[a-z][a-z0-9-]*$/.test(v)&&!['constructor','prototype'
 const machine=v=>v===null||text(v,128);
 const date=v=>typeof v==='number'&&Number.isFinite(v)&&Math.abs(v)<=8640000000000000;
 const clone=v=>JSON.parse(JSON.stringify(v));
-const trackerSources=['jira','github','github-pr','gitlab','gitlab-mr'];
+const trackerSources=['jira','github','github-pr','gitlab','gitlab-mr','shortcut'];
+const SHORTCUT_SITE='https://app.shortcut.com',SHORTCUT_OWNER=/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/,SHORTCUT_WORKSPACE=/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 function sourceKind(source){if(!trackerSources.includes(source))fail('INVALID_SCOPE');return source==='github-pr'?'github':source==='gitlab-mr'?'gitlab':source;}
 export const utf8Bytes=value=>{let n=0;for(const c of value){const code=c.codePointAt(0);n+=code<128?1:code<2048?2:code<65536?3:4;}return n;};
 function json(value,code='INVALID_SCOPE'){try{validateConfig({v:1,preferences:{tracker:value}});}catch{fail(code);}}
@@ -41,6 +42,10 @@ function selection(value,source){
     if(!exact(value,['connectionId'],['project','jql'])||!value.project&&!value.jql||value.project!==undefined&&!text(value.project,256)||value.jql!==undefined&&!text(value.jql,8192))fail('INVALID_BINDING');
     return {connectionId:value.connectionId,...(value.project!==undefined?{project:value.project.trim()}:{}),...(value.jql!==undefined?{jql:value.jql.trim()}:{})};
   }
+  if(source==='shortcut'){
+    if(!exact(value,['connectionId','owner','workspace'],['query'])||!SHORTCUT_OWNER.test(value.owner)||!SHORTCUT_WORKSPACE.test(value.workspace)||value.query!==undefined&&!text(value.query,8192))fail('INVALID_BINDING');
+    return {connectionId:value.connectionId,owner:value.owner,workspace:value.workspace,...(value.query!==undefined?{query:value.query.trim()}:{})};
+  }
   if(source==='gitlab'){
     if(!exact(value,['connectionId','projectPath'],['status']))fail('INVALID_BINDING');let projectPath;try{projectPath=gitlabProjectPath(value.projectPath);}catch{fail('INVALID_BINDING');}
     const status=validateStatusMapping(value.status);if(status&&!Object.hasOwn(status,'labels'))fail('STATUS_MAPPING_REQUIRED');
@@ -50,14 +55,14 @@ function selection(value,source){
   return {connectionId:value.connectionId,owner:value.owner,repo:value.repo,...(value.status!==undefined?{status:validateStatusMapping(value.status)}:{})};
 }
 export function validateRepoBinding(value){
-  if(!exact(value,['machine','repoRoot'],['jira','github','gitlab','mountedLocalPath'])||!machine(value.machine))fail('INVALID_BINDING');
+  if(!exact(value,['machine','repoRoot'],['jira','github','gitlab','shortcut','mountedLocalPath'])||!machine(value.machine))fail('INVALID_BINDING');
   try{if(canonicalRepoPath(value.repoRoot)!==value.repoRoot||value.mountedLocalPath!==undefined&&canonicalRepoPath(value.mountedLocalPath)!==value.mountedLocalPath)fail('INVALID_BINDING');}catch{fail('INVALID_BINDING');}
-  return {machine:value.machine,repoRoot:value.repoRoot,...(value.jira!==undefined?{jira:selection(value.jira,'jira')}:{}),...(value.github!==undefined?{github:selection(value.github,'github')}:{}),...(value.gitlab!==undefined?{gitlab:selection(value.gitlab,'gitlab')}:{}),...(value.mountedLocalPath!==undefined?{mountedLocalPath:value.mountedLocalPath}:{})};
+  return {machine:value.machine,repoRoot:value.repoRoot,...(value.jira!==undefined?{jira:selection(value.jira,'jira')}:{}),...(value.github!==undefined?{github:selection(value.github,'github')}:{}),...(value.gitlab!==undefined?{gitlab:selection(value.gitlab,'gitlab')}:{}),...(value.shortcut!==undefined?{shortcut:selection(value.shortcut,'shortcut')}:{}),...(value.mountedLocalPath!==undefined?{mountedLocalPath:value.mountedLocalPath}:{})};
 }
 function connectionHeader(value,source){
   json(value);if(!object(value)||!id(value.id)||!text(value.kind,80))fail('INVALID_SCOPE');const site=trackerOrigin(value.site);
-  if(source==='jira'&&!['api','cli','mcp-stdio','mcp-http'].includes(value.kind))fail('INVALID_SCOPE');
-  if(['cli','mcp-stdio'].includes(value.kind)&&value.execution?.machine!==null)fail('UNSUPPORTED_INTEGRATION_HOST');
+  if(source==='jira'&&!['api','cli','mcp-stdio','mcp-http'].includes(value.kind)||source==='shortcut'&&(value.kind!=='claude'||site!==SHORTCUT_SITE))fail('INVALID_SCOPE');
+  if(['cli','mcp-stdio','claude'].includes(value.kind)&&value.execution?.machine!==null)fail('UNSUPPORTED_INTEGRATION_HOST');
   return {...clone(value),site};
 }
 export function trackerScope(source,connection,binding){
@@ -86,10 +91,11 @@ export function allTrackerBindings(config,source='jira'){
 
 export function validateIssue(value,{scope}={}){
   if(!exact(value,['identity','key','title','url','body','statusGroup','statusName','repoBinding'],['priority','updatedAt']))fail('INVALID_ISSUE');
-  const i=value.identity;if(!exact(i,['kind','connectionId','site','id'])||!['jira','github','gitlab'].includes(i.kind)||!id(i.connectionId)||!text(i.id,200)||!text(value.key,200)||!text(value.title,512)||!text(value.statusName,200)||!TRACKER_GROUPS.includes(value.statusGroup)||typeof value.body!=='string'||utf8Bytes(value.body)>64000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body)||value.priority!==undefined&&!text(value.priority,128))fail('INVALID_ISSUE');
+  const i=value.identity;if(!exact(i,['kind','connectionId','site','id'])||!['jira','github','gitlab','shortcut'].includes(i.kind)||!id(i.connectionId)||!text(i.id,200)||!text(value.key,200)||!text(value.title,512)||!text(value.statusName,200)||!TRACKER_GROUPS.includes(value.statusGroup)||typeof value.body!=='string'||utf8Bytes(value.body)>64000||/[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body)||value.priority!==undefined&&!text(value.priority,128))fail('INVALID_ISSUE');
   let binding,site;try{binding=validateRepoBinding(value.repoBinding);site=trackerOrigin(i.site);}catch{fail('INVALID_ISSUE');}
   if(site!==i.site||binding[i.kind]?.connectionId!==i.connectionId||!text(value.url,4096))fail('INVALID_ISSUE');
   if(i.kind==='jira'){if(!/^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$/.test(value.key)||value.url!==site+'/browse/'+value.key)fail('INVALID_ISSUE');}
+  else if(i.kind==='shortcut'){if(site!==SHORTCUT_SITE||!/^[1-9][0-9]{0,15}$/.test(i.id)||value.key!=='sc-'+i.id||value.url!==site+'/'+binding.shortcut.workspace+'/story/'+i.id)fail('INVALID_ISSUE');}
   else if(i.kind==='gitlab'){const number=value.key.match(/^GL-([1-9][0-9]*)$/);if(!/^[1-9][0-9]*$/.test(i.id)||!number||value.url!==site+'/'+binding.gitlab.projectPath+'/-/issues/'+number[1])fail('INVALID_ISSUE');}
   else{const prefix=site+'/'+binding.github.owner+'/'+binding.github.repo+'/issues/',parts=value.url.match(/^(https:\/\/[^/]+\/[^/]+\/[^/]+\/issues\/)([1-9][0-9]*)$/);if(!parts||parts[1].toLowerCase()!==prefix.toLowerCase())fail('INVALID_ISSUE');}
   if(value.updatedAt!==undefined&&!date(value.updatedAt))fail('INVALID_ISSUE');
@@ -133,7 +139,7 @@ export class ScopedTrackerCache{
 }
 /** Only the named repo binding changes. Reusing a profile never edits it implicitly. */
 export async function saveRepoIntegration(io,{machine:on,repoRoot,source,connection,selection:selected}){
-  if(!['jira','github','gitlab'].includes(source))fail('INVALID_BINDING');const c=connectionHeader(connection,source),binding=validateRepoBinding({machine:on,repoRoot,[source]:{...selected,connectionId:c.id}});
+  if(!['jira','github','gitlab','shortcut'].includes(source))fail('INVALID_BINDING');const c=connectionHeader(connection,source),binding=validateRepoBinding({machine:on,repoRoot,[source]:{...selected,connectionId:c.id}});
   return updateConfig(io,config=>{
     const old=config.connections[c.id];if(old&&stable(connectionHeader(old,source))!==stable(c))fail('CONNECTION_CONFLICT');
     config.connections[c.id]=c;const key=bindingKey(on,repoRoot);config.bindings[key]={...(config.bindings[key]||{machine:on,repoRoot}),[source]:binding[source]};

@@ -24,7 +24,7 @@ function validLink(issue){
   try{
     const site=trackerOrigin(issue.identity.site);if(site!==issue.identity.site)return false;
     if(issue.identity.kind==='jira')return /^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$/.test(issue.key)&&issue.url===site+'/browse/'+issue.key;
-    if(issue.identity.kind==='gitlab'){validateIssue(issue);return true;}
+    if(['gitlab','shortcut'].includes(issue.identity.kind)){validateIssue(issue);return true;}
     const b=issue.repoBinding.github,prefix=site+'/'+b.owner+'/'+b.repo+'/issues/',parts=issue.url.match(/^(https:\/\/[^/]+\/[^/]+\/[^/]+\/issues\/)([1-9][0-9]*)$/);return issue.identity.kind==='github'&&Boolean(parts)&&parts[1].toLowerCase()===prefix.toLowerCase();
   }catch{return false;}
 }
