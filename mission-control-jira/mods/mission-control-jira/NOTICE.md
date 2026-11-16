@@ -100,6 +100,10 @@ pin: Original Mission Control artwork; MIT
 
 ---
 
+shortcut: Original Mission Control artwork; MIT
+
+---
+
 zod@4.6.7 (MIT)
 MIT License
 

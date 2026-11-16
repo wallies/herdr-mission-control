@@ -14,7 +14,7 @@
     "NOTICE.md": "b72f3ea4ddef870a7fca5503f0ee3c159cd8d06929e818d775b865e51cb756fc"
   },
   "sources": {
-    "src/assets/icons.json": "e15e5fd5234d4d3f8edc59a30bc4f45c878aa0bc662defde22877855704c1254",
+    "src/assets/icons.json": "6e53407c9b452077035a5b28f97aba1d43534e382d6685ffdb322144b21770bf",
     "src/mods/mission-control-control-panel/apply.mjs": "fcf4447ddf5350832f9581ca85cd5aa93cdb4a9342c1879db2967740ecb12b33",
     "src/mods/mission-control-control-panel/backend.mjs": "c1689afa9fb0934e51511a378e12fbdfb621edffb5244cead2acd2fa6dc5275b",
     "src/mods/mission-control-control-panel/bundles.mjs": "f8dd35eb705c9d931161c74b8fada7b89bf904db29ce1d1472fff88a7975c317",

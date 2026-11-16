@@ -26,14 +26,15 @@
     "assets/server.svg": "4a6a50b128185781455b2a145fbde0bb57e6deff93830168388a97a1f240e2c8",
     "assets/sessions.svg": "40c70935bd80015005b85b9b42368e4dfdf44ac6a3392e2f6b7fd18a59159d9d",
     "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
+    "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
-    "backend.mjs": "d483b5202eaa59dd6ecaa95841bb7ba97a0d0949e0fa78a68bddf8b144ae172f",
-    "main.js": "f77d210afef4d175c2e3430abea3eea583e9670a25d3d3984e174c2be862e106",
+    "backend.mjs": "8edef11ecc843d0632ece3cc4b797fe2291b831d9e77aa4af1d5a723c4c4ed86",
+    "main.js": "359991316d1dd521d03c41228f5176439cb691151f19682e11f21ec466f12833",
     "mod.json": "0465ac8f0599cf876bd27a29dec75eb3ffea9a1a3713889df29a95116af944ef",
-    "NOTICE.md": "f20f37f2705da9d37b502d64fbe21f68f7db7280f83369013586be19e747c873"
+    "NOTICE.md": "f2d7825e29fa94721452a999aeb418877c921151d254914d482de6ff3a79934f"
   },
   "sources": {
-    "src/assets/icons.json": "e15e5fd5234d4d3f8edc59a30bc4f45c878aa0bc662defde22877855704c1254",
+    "src/assets/icons.json": "6e53407c9b452077035a5b28f97aba1d43534e382d6685ffdb322144b21770bf",
     "src/mods/mission-control-github/auth.mjs": "608b182bf14b7451a03fd72fc8000be791418df79e00da7a3c745d2194ae04c5",
     "src/mods/mission-control-github/backend.mjs": "18697943571e6ec868eaec147fe91b62b6061a529b7c184ab3c6a95ce9fc0fa7",
     "src/mods/mission-control-github/data.js": "9d9f99b8774887105240534a53b2d907b69bc1314e8eb9d0d1feb2811aece4fb",
@@ -43,19 +44,19 @@
     "src/mods/mission-control-github/pull-model.js": "0cd81c03aad9097729515c34f2f47f2984c4c94db83577528d55facc4750badf",
     "src/mods/mission-control-github/pulls-view.js": "9c5c205344259be70169dd31131eb5c34e1a58cd538fc77df07695d5db5970d9",
     "src/mods/mission-control-github/pulls.mjs": "8cb8841bd1c0c1b1db46ae1852a634d4be5135e96bf7380a7bcaac2a25e25b76",
-    "src/shared/config.js": "2cea2d16c0faed2eef2f8105b0adc0c6098cf556a84297249b5bd9895eddf9a7",
-    "src/shared/issue-board.js": "de9f082291faaa5da7067dfc3b4d3c2c5b2e22b4558d363dd9bad2275cfca570",
+    "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",
+    "src/shared/issue-board.js": "d37f38fdf42025d28df7605f3dbefd775ae8894c7abe56208652681ad2874cf3",
     "src/shared/launch-dialog.js": "af825d80f8d6c2a629bfe7f0e10568da53c0a28979248bc1aabf65ab41d9519f",
     "src/shared/launch-preferences.js": "c70132d68a264054de91a25704c44c7f6c6cb2e380c93f6807842bdca5558fd9",
-    "src/shared/launch.js": "703de57929bcfe530dbba751a255b417511d7eccfb8a2da420caac5e0f78172e",
+    "src/shared/launch.js": "2d3dbcdafb24926b3c336716c0dcff315d27f82394eee15f92fd8a0376b5dfe9",
     "src/shared/name-ownership.js": "24f4e7060bffdb1559e76091039fc1b1e076095d72cc8b44c14596d8a37ae784",
     "src/shared/session-bindings.js": "8ce735273c2d4e8ee9e63bed0036276d8afa69fc92f40c22fa30ddd10c815d99",
     "src/shared/session-identity.js": "9cb414ff020c4c49c66018f8146f41261975790a4d4349da18f278f60131617e",
     "src/shared/space-repo.js": "464ff46525dc00fd74813104bb9fcc770d10fef2eb366decc6f18125a6f62d07",
     "src/shared/tool-capabilities.js": "31bbf19a27d0621a8d758fdcb6d4f46a1788bd96d5d80331a938999df9012f05",
-    "src/shared/tracker-model.js": "ccff559b7b1f7160596e73fac10215d12eab265fb2b70fcf4c163216938ca66a",
-    "src/shared/tracker-transport.mjs": "e8e890a65ea03d883948068999b0b8c09c3702f15f73d335092e85fb9896a563",
+    "src/shared/tracker-model.js": "c579963b42c2f89e5c73be7fb450be181c4248bd2cc672dcb084fdaadc557891",
+    "src/shared/tracker-transport.mjs": "57fa2b25597aa94b39aa5a58d0a91ba39f60897d7e24bcbfcd09b783c0404137",
     "src/shared/ui.js": "63653a7db2c610678b687fe0263aa078f9458336d411b5be4335cba2a4b8533b",
-    "src/shared/worktrees.js": "adcbcc9b10fc6f08f852bdeed9d8cd0e3dc6f0bdf8104c1ebca9dc9264f360d5"
+    "src/shared/worktrees.js": "d03aadea1b5b8717fd26786a88200e1e9e161aa3888347733cb1959abcb4945f"
   }
 }

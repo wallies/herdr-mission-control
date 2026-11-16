@@ -88,11 +88,12 @@ function validateGitlabSelection(value) {
 function validateBinding(binding, key, connections) {
   if (!object(binding)) fail("Repository bindings must be objects.");
   if (bindingKey(binding.machine, binding.repoRoot) !== key) fail("A repository binding does not match its machine/root key.");
-  for (const source of ["jira", "github", "gitlab"]) {
+  for (const source of ["jira", "github", "gitlab", "shortcut"]) {
     if (binding[source] === void 0) continue;
     const selected = binding[source];
     if (!object(selected) || typeof selected.connectionId !== "string" || !Object.hasOwn(connections, selected.connectionId)) fail("A tracker binding must reference an existing connection.");
     if (source === "jira" && !selected.project && !selected.jql) fail("A Jira binding needs a project or JQL filter.");
+    if (source === "shortcut" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.workspace !== "string" || !selected.workspace)) fail("A Shortcut binding needs its owner and workspace.");
     if (source === "github" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.repo !== "string" || !selected.repo)) fail("A GitHub binding needs its owner and repository.");
     if (source === "gitlab") validateGitlabSelection(selected);
   }
@@ -125,6 +126,10 @@ var messages = {
   STATUS_MAPPING_REQUIRED: "Configure the source status mapping before using this board.",
   CLI_UNAVAILABLE: "The configured tracker CLI is not installed locally. Select an installed command or another adapter.",
   ADAPTER_FAILED: "The configured tracker program failed. Check its profile and read-only JSON bridge.",
+  CLAUDE_UNAVAILABLE: "Claude Code (the claude command) was not found. Install it, or enter the absolute path to claude in Set up, because the app may not search ~/.local/bin.",
+  CLAUDE_FAILED: "The Claude Code run failed. Run claude in a terminal to check that it is signed in, then refresh.",
+  BUDGET_EXHAUSTED: "The Claude Code run reached its $0.10 budget before the stories loaded. Narrow the saved query and refresh.",
+  SHORTCUT_SIGN_IN_REQUIRED: "Claude Code is not signed in to Shortcut. In Claude Code, run /mcp and sign in to shortcut, then refresh.",
   MCP_UNAVAILABLE: "The selected MCP server is unavailable. Check its transport and credential references, then reconnect.",
   MCP_TOOL_UNAVAILABLE: "The configured MCP search tool is missing or changed. Reconnect and select its current tool mapping.",
   MCP_TOOL_NOT_READ_ONLY: "Select a read-only MCP issue-search tool before loading this board.",
@@ -241,7 +246,7 @@ function validateJiraConnection(input) {
   return c;
 }
 function validateTrackerRequest(input, { connectionValidator = validateJiraConnection, source = "jira" } = {}) {
-  const operations = { jira: ["issues", "probe"], github: ["issues", "pulls", "probe"], gitlab: ["issues", "merges", "probe"] };
+  const operations = { jira: ["issues", "probe"], github: ["issues", "pulls", "probe"], gitlab: ["issues", "merges", "probe"], shortcut: ["issues", "probe"] };
   jsonData(input, "INVALID_REQUEST");
   if (!exact(input, ["v", "operation", "connection", "binding"], ["cursor"]) || input.v !== 1 || !Object.hasOwn(operations, source) || !operations[source].includes(input.operation) || Buffer.byteLength(JSON.stringify(input)) > 65536 || input.cursor !== void 0 && input.cursor !== null && !text(input.cursor, 8192)) fail2("INVALID_REQUEST");
   const connection = connectionValidator(input.connection), binding = clone(input.binding);
@@ -252,7 +257,7 @@ function validateTrackerRequest(input, { connectionValidator = validateJiraConne
     fail2("INVALID_REQUEST");
   }
   const selected = binding[source];
-  if (selected !== void 0 && (selected?.connectionId !== connection.id || source === "jira" && (!text(selected.project, 256) && !text(selected.jql, 8192)) || source === "github" && (!text(selected.owner, 128) || !text(selected.repo, 128)))) fail2("INVALID_REQUEST");
+  if (selected !== void 0 && (selected?.connectionId !== connection.id || source === "jira" && (!text(selected.project, 256) && !text(selected.jql, 8192)) || source === "github" && (!text(selected.owner, 128) || !text(selected.repo, 128)) || source === "shortcut" && (!text(selected.owner, 128) || !text(selected.workspace, 64) || selected.query !== void 0 && !text(selected.query, 8192)))) fail2("INVALID_REQUEST");
   if (source === "gitlab" && selected !== void 0) {
     try {
       gitlabProjectPath(selected.projectPath);
@@ -496,7 +501,10 @@ var id2 = (v) => text2(v, 96) && /^[a-z][a-z0-9-]*$/.test(v) && !["constructor",
 var machine2 = (v) => v === null || text2(v, 128);
 var date = (v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= 864e13;
 var clone2 = (v) => JSON.parse(JSON.stringify(v));
-var trackerSources = ["jira", "github", "github-pr", "gitlab", "gitlab-mr"];
+var trackerSources = ["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"];
+var SHORTCUT_SITE = "https://app.shortcut.com";
+var SHORTCUT_OWNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+var SHORTCUT_WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 function sourceKind(source) {
   if (!trackerSources.includes(source)) fail3("INVALID_SCOPE");
   return source === "github-pr" ? "github" : source === "gitlab-mr" ? "gitlab" : source;
@@ -568,6 +576,10 @@ function selection(value, source) {
     if (!exact2(value, ["connectionId"], ["project", "jql"]) || !value.project && !value.jql || value.project !== void 0 && !text2(value.project, 256) || value.jql !== void 0 && !text2(value.jql, 8192)) fail3("INVALID_BINDING");
     return { connectionId: value.connectionId, ...value.project !== void 0 ? { project: value.project.trim() } : {}, ...value.jql !== void 0 ? { jql: value.jql.trim() } : {} };
   }
+  if (source === "shortcut") {
+    if (!exact2(value, ["connectionId", "owner", "workspace"], ["query"]) || !SHORTCUT_OWNER.test(value.owner) || !SHORTCUT_WORKSPACE.test(value.workspace) || value.query !== void 0 && !text2(value.query, 8192)) fail3("INVALID_BINDING");
+    return { connectionId: value.connectionId, owner: value.owner, workspace: value.workspace, ...value.query !== void 0 ? { query: value.query.trim() } : {} };
+  }
   if (source === "gitlab") {
     if (!exact2(value, ["connectionId", "projectPath"], ["status"])) fail3("INVALID_BINDING");
     let projectPath;
@@ -584,20 +596,20 @@ function selection(value, source) {
   return { connectionId: value.connectionId, owner: value.owner, repo: value.repo, ...value.status !== void 0 ? { status: validateStatusMapping(value.status) } : {} };
 }
 function validateRepoBinding(value) {
-  if (!exact2(value, ["machine", "repoRoot"], ["jira", "github", "gitlab", "mountedLocalPath"]) || !machine2(value.machine)) fail3("INVALID_BINDING");
+  if (!exact2(value, ["machine", "repoRoot"], ["jira", "github", "gitlab", "shortcut", "mountedLocalPath"]) || !machine2(value.machine)) fail3("INVALID_BINDING");
   try {
     if (canonicalRepoPath(value.repoRoot) !== value.repoRoot || value.mountedLocalPath !== void 0 && canonicalRepoPath(value.mountedLocalPath) !== value.mountedLocalPath) fail3("INVALID_BINDING");
   } catch {
     fail3("INVALID_BINDING");
   }
-  return { machine: value.machine, repoRoot: value.repoRoot, ...value.jira !== void 0 ? { jira: selection(value.jira, "jira") } : {}, ...value.github !== void 0 ? { github: selection(value.github, "github") } : {}, ...value.gitlab !== void 0 ? { gitlab: selection(value.gitlab, "gitlab") } : {}, ...value.mountedLocalPath !== void 0 ? { mountedLocalPath: value.mountedLocalPath } : {} };
+  return { machine: value.machine, repoRoot: value.repoRoot, ...value.jira !== void 0 ? { jira: selection(value.jira, "jira") } : {}, ...value.github !== void 0 ? { github: selection(value.github, "github") } : {}, ...value.gitlab !== void 0 ? { gitlab: selection(value.gitlab, "gitlab") } : {}, ...value.shortcut !== void 0 ? { shortcut: selection(value.shortcut, "shortcut") } : {}, ...value.mountedLocalPath !== void 0 ? { mountedLocalPath: value.mountedLocalPath } : {} };
 }
 function connectionHeader(value, source) {
   json(value);
   if (!object3(value) || !id2(value.id) || !text2(value.kind, 80)) fail3("INVALID_SCOPE");
   const site = trackerOrigin(value.site);
-  if (source === "jira" && !["api", "cli", "mcp-stdio", "mcp-http"].includes(value.kind)) fail3("INVALID_SCOPE");
-  if (["cli", "mcp-stdio"].includes(value.kind) && value.execution?.machine !== null) fail3("UNSUPPORTED_INTEGRATION_HOST");
+  if (source === "jira" && !["api", "cli", "mcp-stdio", "mcp-http"].includes(value.kind) || source === "shortcut" && (value.kind !== "claude" || site !== SHORTCUT_SITE)) fail3("INVALID_SCOPE");
+  if (["cli", "mcp-stdio", "claude"].includes(value.kind) && value.execution?.machine !== null) fail3("UNSUPPORTED_INTEGRATION_HOST");
   return { ...clone2(value), site };
 }
 function trackerScope(source, connection, binding) {
@@ -622,7 +634,7 @@ var trackerScopeKey = (scope) => stable(validateTrackerScope(scope));
 function validateIssue(value, { scope } = {}) {
   if (!exact2(value, ["identity", "key", "title", "url", "body", "statusGroup", "statusName", "repoBinding"], ["priority", "updatedAt"])) fail3("INVALID_ISSUE");
   const i = value.identity;
-  if (!exact2(i, ["kind", "connectionId", "site", "id"]) || !["jira", "github", "gitlab"].includes(i.kind) || !id2(i.connectionId) || !text2(i.id, 200) || !text2(value.key, 200) || !text2(value.title, 512) || !text2(value.statusName, 200) || !TRACKER_GROUPS.includes(value.statusGroup) || typeof value.body !== "string" || utf8Bytes(value.body) > 64e3 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body) || value.priority !== void 0 && !text2(value.priority, 128)) fail3("INVALID_ISSUE");
+  if (!exact2(i, ["kind", "connectionId", "site", "id"]) || !["jira", "github", "gitlab", "shortcut"].includes(i.kind) || !id2(i.connectionId) || !text2(i.id, 200) || !text2(value.key, 200) || !text2(value.title, 512) || !text2(value.statusName, 200) || !TRACKER_GROUPS.includes(value.statusGroup) || typeof value.body !== "string" || utf8Bytes(value.body) > 64e3 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body) || value.priority !== void 0 && !text2(value.priority, 128)) fail3("INVALID_ISSUE");
   let binding, site;
   try {
     binding = validateRepoBinding(value.repoBinding);
@@ -633,6 +645,8 @@ function validateIssue(value, { scope } = {}) {
   if (site !== i.site || binding[i.kind]?.connectionId !== i.connectionId || !text2(value.url, 4096)) fail3("INVALID_ISSUE");
   if (i.kind === "jira") {
     if (!/^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$/.test(value.key) || value.url !== site + "/browse/" + value.key) fail3("INVALID_ISSUE");
+  } else if (i.kind === "shortcut") {
+    if (site !== SHORTCUT_SITE || !/^[1-9][0-9]{0,15}$/.test(i.id) || value.key !== "sc-" + i.id || value.url !== site + "/" + binding.shortcut.workspace + "/story/" + i.id) fail3("INVALID_ISSUE");
   } else if (i.kind === "gitlab") {
     const number = value.key.match(/^GL-([1-9][0-9]*)$/);
     if (!/^[1-9][0-9]*$/.test(i.id) || !number || value.url !== site + "/" + binding.gitlab.projectPath + "/-/issues/" + number[1]) fail3("INVALID_ISSUE");

@@ -26,23 +26,24 @@
     "assets/server.svg": "4a6a50b128185781455b2a145fbde0bb57e6deff93830168388a97a1f240e2c8",
     "assets/sessions.svg": "40c70935bd80015005b85b9b42368e4dfdf44ac6a3392e2f6b7fd18a59159d9d",
     "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
+    "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "collector.py": "98f7a98ee3ee1f6b9cbd1da3c2ab941c92123c2168d6f5630be4da81ca8caf92",
-    "main.js": "6e5f80c5f9430a7d38b8ed483561ca2cfcd02d15f45760d947ab296300d77fd1",
+    "main.js": "56170b5756bff52c59f642e9ae1790daa16260eea6d7b6f30f0fb2333ce71006",
     "mod.json": "732ee1874cda788d9577fcb5f50edf1895b55f53d33952186db4de6f06fc2680",
-    "NOTICE.md": "f20f37f2705da9d37b502d64fbe21f68f7db7280f83369013586be19e747c873"
+    "NOTICE.md": "f2d7825e29fa94721452a999aeb418877c921151d254914d482de6ff3a79934f"
   },
   "sources": {
-    "src/assets/icons.json": "e15e5fd5234d4d3f8edc59a30bc4f45c878aa0bc662defde22877855704c1254",
+    "src/assets/icons.json": "6e53407c9b452077035a5b28f97aba1d43534e382d6685ffdb322144b21770bf",
     "src/mods/mission-control-sessions/main.js": "dbb3cc03ae2a30677b208d02edf4c12eccc590c65709b4d9f8beaee641989947",
     "src/mods/mission-control-sessions/mod.json": "d9688ea682ea81aa5f72d4aeb3ad72d1d70d8137b8e040c836e6b0baad6a403b",
     "src/mods/mission-control-sessions/model.js": "020949e4196d6032f86d1a41340f7524360031f8f5d53dd782b8ecf677868dc1",
     "src/shared/codex-session-hook.js": "1eadbfefc4af197d58165f290f3b4b955bc7de4895c8cae84cbe5d16c583fbd5",
     "src/shared/collector.py": "d60fce68dc85cdd761a74f909637a4296ffd5e589f0bf11178d58e2ae1bdc4df",
-    "src/shared/config.js": "2cea2d16c0faed2eef2f8105b0adc0c6098cf556a84297249b5bd9895eddf9a7",
+    "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",
     "src/shared/context.js": "6c202695a40ac4c51fd931aa9c7a7159611ec96651956f6cb7b48069e2bbb0d0",
     "src/shared/launch-preferences.js": "c70132d68a264054de91a25704c44c7f6c6cb2e380c93f6807842bdca5558fd9",
-    "src/shared/launch.js": "703de57929bcfe530dbba751a255b417511d7eccfb8a2da420caac5e0f78172e",
+    "src/shared/launch.js": "2d3dbcdafb24926b3c336716c0dcff315d27f82394eee15f92fd8a0376b5dfe9",
     "src/shared/name-ownership.js": "24f4e7060bffdb1559e76091039fc1b1e076095d72cc8b44c14596d8a37ae784",
     "src/shared/provider-observation.js": "17175cb47ad6e80949ffbf279014bba095712fb24fa4471438dc2d9eceeb24b1",
     "src/shared/provider_claude.py": "429c560593e70345994b42ca73f7783fc3c5e8d612be37ac888260221ac7338b",
@@ -59,6 +60,6 @@
     "src/shared/tool-capabilities.js": "31bbf19a27d0621a8d758fdcb6d4f46a1788bd96d5d80331a938999df9012f05",
     "src/shared/ui.js": "63653a7db2c610678b687fe0263aa078f9458336d411b5be4335cba2a4b8533b",
     "src/shared/usage-sources.js": "e5ed02f02e6c3648e165aed45adb32442334ea5b120c2ec8b9e6db5a1a643699",
-    "src/shared/worktrees.js": "adcbcc9b10fc6f08f852bdeed9d8cd0e3dc6f0bdf8104c1ebca9dc9264f360d5"
+    "src/shared/worktrees.js": "d03aadea1b5b8717fd26786a88200e1e9e161aa3888347733cb1959abcb4945f"
   }
 }

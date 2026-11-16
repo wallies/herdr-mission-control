@@ -71,10 +71,10 @@ function validateGitlabSelection(value) {
   if (!Object.hasOwn(value, "connectionId") || !Object.hasOwn(value, "projectPath") || Object.keys(value).some((key3) => !["connectionId", "projectPath", "status"].includes(key3))) fail("A GitLab binding needs its connection and project path.");
   gitlabProjectPath(value.projectPath);
   if (value.status === void 0) return;
-  const status = value.status, groups2 = ["todo", "inProgress", "done"];
-  if (!object(status) || Object.keys(status).length !== 1 || !Object.hasOwn(status, "labels") || !object(status.labels) || Object.keys(status.labels).length !== groups2.length || groups2.some((group) => !Object.hasOwn(status.labels, group))) fail("GitLab workflow mapping needs To do, In progress and Done label groups.");
+  const status = value.status, groups = ["todo", "inProgress", "done"];
+  if (!object(status) || Object.keys(status).length !== 1 || !Object.hasOwn(status, "labels") || !object(status.labels) || Object.keys(status.labels).length !== groups.length || groups.some((group) => !Object.hasOwn(status.labels, group))) fail("GitLab workflow mapping needs To do, In progress and Done label groups.");
   const used = /* @__PURE__ */ new Set();
-  for (const group of groups2) {
+  for (const group of groups) {
     const labels = status.labels[group];
     if (!Array.isArray(labels) || labels.length > 100) fail("GitLab workflow label groups must be bounded lists.");
     for (const label2 of labels) {
@@ -86,11 +86,12 @@ function validateGitlabSelection(value) {
 function validateBinding(binding, key3, connections) {
   if (!object(binding)) fail("Repository bindings must be objects.");
   if (bindingKey(binding.machine, binding.repoRoot) !== key3) fail("A repository binding does not match its machine/root key.");
-  for (const source of ["jira", "github", "gitlab"]) {
+  for (const source of ["jira", "github", "gitlab", "shortcut"]) {
     if (binding[source] === void 0) continue;
     const selected = binding[source];
     if (!object(selected) || typeof selected.connectionId !== "string" || !Object.hasOwn(connections, selected.connectionId)) fail("A tracker binding must reference an existing connection.");
     if (source === "jira" && !selected.project && !selected.jql) fail("A Jira binding needs a project or JQL filter.");
+    if (source === "shortcut" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.workspace !== "string" || !selected.workspace)) fail("A Shortcut binding needs its owner and workspace.");
     if (source === "github" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.repo !== "string" || !selected.repo)) fail("A GitHub binding needs its owner and repository.");
     if (source === "gitlab") validateGitlabSelection(selected);
   }
@@ -191,7 +192,10 @@ var id = (v) => text(v, 96) && /^[a-z][a-z0-9-]*$/.test(v) && !["constructor", "
 var machine2 = (v) => v === null || text(v, 128);
 var date = (v) => typeof v === "number" && Number.isFinite(v) && Math.abs(v) <= 864e13;
 var clone = (v) => JSON.parse(JSON.stringify(v));
-var trackerSources = ["jira", "github", "github-pr", "gitlab", "gitlab-mr"];
+var trackerSources = ["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"];
+var SHORTCUT_SITE = "https://app.shortcut.com";
+var SHORTCUT_OWNER = /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/;
+var SHORTCUT_WORKSPACE = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/;
 function sourceKind(source) {
   if (!trackerSources.includes(source)) fail2("INVALID_SCOPE");
   return source === "github-pr" ? "github" : source === "gitlab-mr" ? "gitlab" : source;
@@ -237,20 +241,20 @@ function list(value, { caseFold = false } = {}) {
 function validateStatusMapping(value) {
   if (value === void 0) return void 0;
   if (!object2(value) || Object.keys(value).length !== 1) fail2("STATUS_MAPPING_REQUIRED");
-  let groups2, result, caseFold = false;
+  let groups, result, caseFold = false;
   if (Object.hasOwn(value, "labels")) {
     if (!exact(value.labels, TRACKER_GROUPS)) fail2("STATUS_MAPPING_REQUIRED");
     caseFold = true;
-    groups2 = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, list(value.labels[k], { caseFold })]));
-    result = { labels: groups2 };
+    groups = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, list(value.labels[k], { caseFold })]));
+    result = { labels: groups };
   } else if (Object.hasOwn(value, "project")) {
     const p = value.project;
     if (!exact(p, ["owner", "number", "fieldId", "options", "unmapped"]) || !repoName(p.owner) || !Number.isSafeInteger(p.number) || p.number < 1 || !text(p.fieldId, 200) || p.unmapped !== "error" || !exact(p.options, TRACKER_GROUPS)) fail2("STATUS_MAPPING_REQUIRED");
-    groups2 = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, list(p.options[k])]));
-    result = { project: { ...clone(p), options: groups2 } };
+    groups = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, list(p.options[k])]));
+    result = { project: { ...clone(p), options: groups } };
   } else fail2("STATUS_MAPPING_REQUIRED");
   const used = /* @__PURE__ */ new Set();
-  for (const values of Object.values(groups2)) for (const value2 of values) {
+  for (const values of Object.values(groups)) for (const value2 of values) {
     const key3 = caseFold ? value2.toLowerCase() : value2;
     if (used.has(key3)) fail2("STATUS_MAPPING_REQUIRED");
     used.add(key3);
@@ -262,6 +266,10 @@ function selection(value, source) {
   if (source === "jira") {
     if (!exact(value, ["connectionId"], ["project", "jql"]) || !value.project && !value.jql || value.project !== void 0 && !text(value.project, 256) || value.jql !== void 0 && !text(value.jql, 8192)) fail2("INVALID_BINDING");
     return { connectionId: value.connectionId, ...value.project !== void 0 ? { project: value.project.trim() } : {}, ...value.jql !== void 0 ? { jql: value.jql.trim() } : {} };
+  }
+  if (source === "shortcut") {
+    if (!exact(value, ["connectionId", "owner", "workspace"], ["query"]) || !SHORTCUT_OWNER.test(value.owner) || !SHORTCUT_WORKSPACE.test(value.workspace) || value.query !== void 0 && !text(value.query, 8192)) fail2("INVALID_BINDING");
+    return { connectionId: value.connectionId, owner: value.owner, workspace: value.workspace, ...value.query !== void 0 ? { query: value.query.trim() } : {} };
   }
   if (source === "gitlab") {
     if (!exact(value, ["connectionId", "projectPath"], ["status"])) fail2("INVALID_BINDING");
@@ -279,20 +287,20 @@ function selection(value, source) {
   return { connectionId: value.connectionId, owner: value.owner, repo: value.repo, ...value.status !== void 0 ? { status: validateStatusMapping(value.status) } : {} };
 }
 function validateRepoBinding(value) {
-  if (!exact(value, ["machine", "repoRoot"], ["jira", "github", "gitlab", "mountedLocalPath"]) || !machine2(value.machine)) fail2("INVALID_BINDING");
+  if (!exact(value, ["machine", "repoRoot"], ["jira", "github", "gitlab", "shortcut", "mountedLocalPath"]) || !machine2(value.machine)) fail2("INVALID_BINDING");
   try {
     if (canonicalRepoPath(value.repoRoot) !== value.repoRoot || value.mountedLocalPath !== void 0 && canonicalRepoPath(value.mountedLocalPath) !== value.mountedLocalPath) fail2("INVALID_BINDING");
   } catch {
     fail2("INVALID_BINDING");
   }
-  return { machine: value.machine, repoRoot: value.repoRoot, ...value.jira !== void 0 ? { jira: selection(value.jira, "jira") } : {}, ...value.github !== void 0 ? { github: selection(value.github, "github") } : {}, ...value.gitlab !== void 0 ? { gitlab: selection(value.gitlab, "gitlab") } : {}, ...value.mountedLocalPath !== void 0 ? { mountedLocalPath: value.mountedLocalPath } : {} };
+  return { machine: value.machine, repoRoot: value.repoRoot, ...value.jira !== void 0 ? { jira: selection(value.jira, "jira") } : {}, ...value.github !== void 0 ? { github: selection(value.github, "github") } : {}, ...value.gitlab !== void 0 ? { gitlab: selection(value.gitlab, "gitlab") } : {}, ...value.shortcut !== void 0 ? { shortcut: selection(value.shortcut, "shortcut") } : {}, ...value.mountedLocalPath !== void 0 ? { mountedLocalPath: value.mountedLocalPath } : {} };
 }
 function connectionHeader(value, source) {
   json(value);
   if (!object2(value) || !id(value.id) || !text(value.kind, 80)) fail2("INVALID_SCOPE");
   const site = trackerOrigin(value.site);
-  if (source === "jira" && !["api", "cli", "mcp-stdio", "mcp-http"].includes(value.kind)) fail2("INVALID_SCOPE");
-  if (["cli", "mcp-stdio"].includes(value.kind) && value.execution?.machine !== null) fail2("UNSUPPORTED_INTEGRATION_HOST");
+  if (source === "jira" && !["api", "cli", "mcp-stdio", "mcp-http"].includes(value.kind) || source === "shortcut" && (value.kind !== "claude" || site !== SHORTCUT_SITE)) fail2("INVALID_SCOPE");
+  if (["cli", "mcp-stdio", "claude"].includes(value.kind) && value.execution?.machine !== null) fail2("UNSUPPORTED_INTEGRATION_HOST");
   return { ...clone(value), site };
 }
 function trackerScope(source, connection, binding) {
@@ -340,7 +348,7 @@ function allTrackerBindings(config, source = "jira") {
 function validateIssue(value, { scope } = {}) {
   if (!exact(value, ["identity", "key", "title", "url", "body", "statusGroup", "statusName", "repoBinding"], ["priority", "updatedAt"])) fail2("INVALID_ISSUE");
   const i = value.identity;
-  if (!exact(i, ["kind", "connectionId", "site", "id"]) || !["jira", "github", "gitlab"].includes(i.kind) || !id(i.connectionId) || !text(i.id, 200) || !text(value.key, 200) || !text(value.title, 512) || !text(value.statusName, 200) || !TRACKER_GROUPS.includes(value.statusGroup) || typeof value.body !== "string" || utf8Bytes(value.body) > 64e3 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body) || value.priority !== void 0 && !text(value.priority, 128)) fail2("INVALID_ISSUE");
+  if (!exact(i, ["kind", "connectionId", "site", "id"]) || !["jira", "github", "gitlab", "shortcut"].includes(i.kind) || !id(i.connectionId) || !text(i.id, 200) || !text(value.key, 200) || !text(value.title, 512) || !text(value.statusName, 200) || !TRACKER_GROUPS.includes(value.statusGroup) || typeof value.body !== "string" || utf8Bytes(value.body) > 64e3 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(value.body) || value.priority !== void 0 && !text(value.priority, 128)) fail2("INVALID_ISSUE");
   let binding, site;
   try {
     binding = validateRepoBinding(value.repoBinding);
@@ -351,6 +359,8 @@ function validateIssue(value, { scope } = {}) {
   if (site !== i.site || binding[i.kind]?.connectionId !== i.connectionId || !text(value.url, 4096)) fail2("INVALID_ISSUE");
   if (i.kind === "jira") {
     if (!/^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$/.test(value.key) || value.url !== site + "/browse/" + value.key) fail2("INVALID_ISSUE");
+  } else if (i.kind === "shortcut") {
+    if (site !== SHORTCUT_SITE || !/^[1-9][0-9]{0,15}$/.test(i.id) || value.key !== "sc-" + i.id || value.url !== site + "/" + binding.shortcut.workspace + "/story/" + i.id) fail2("INVALID_ISSUE");
   } else if (i.kind === "gitlab") {
     const number = value.key.match(/^GL-([1-9][0-9]*)$/);
     if (!/^[1-9][0-9]*$/.test(i.id) || !number || value.url !== site + "/" + binding.gitlab.projectPath + "/-/issues/" + number[1]) fail2("INVALID_ISSUE");
@@ -371,14 +381,14 @@ function issueIdentityKey(issue) {
 }
 function groupIssues(issues, { query = "", status = "all" } = {}) {
   if (!["all", ...TRACKER_GROUPS].includes(status) || typeof query !== "string" || query.length > 512) fail2("INVALID_FILTER");
-  const needle = query.trim().toLowerCase(), groups2 = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, []]));
+  const needle = query.trim().toLowerCase(), groups = Object.fromEntries(TRACKER_GROUPS.map((k) => [k, []]));
   for (const issue of issues) {
     if (!TRACKER_GROUPS.includes(issue.statusGroup)) fail2("INVALID_ISSUE");
     if (status !== "all" && issue.statusGroup !== status) continue;
     if (needle && !`${issue.key} ${issue.title} ${issue.statusName} ${issue.repoBinding.repoRoot} ${issue.repoBinding.machine || "This Mac"}`.toLowerCase().includes(needle)) continue;
-    groups2[issue.statusGroup].push(issue);
+    groups[issue.statusGroup].push(issue);
   }
-  return groups2;
+  return groups;
 }
 function validateSnapshot(value, expectedScope, { validateItem = validateIssue, itemKey = issueIdentityKey, now: now2 = Date.now() } = {}) {
   const scope = validateTrackerScope(expectedScope);
@@ -451,7 +461,7 @@ var ScopedTrackerCache = class {
   }
 };
 async function saveRepoIntegration(io, { machine: on, repoRoot, source, connection, selection: selected }) {
-  if (!["jira", "github", "gitlab"].includes(source)) fail2("INVALID_BINDING");
+  if (!["jira", "github", "gitlab", "shortcut"].includes(source)) fail2("INVALID_BINDING");
   const c = connectionHeader(connection, source), binding = validateRepoBinding({ machine: on, repoRoot, [source]: { ...selected, connectionId: c.id } });
   return updateConfig(io, (config) => {
     const old = config.connections[c.id];
@@ -816,7 +826,7 @@ function resolveWorktreeChoice(request, { spaceName, value = "", branch = "" } =
 function sourceIdentity(source) {
   if (!source) return null;
   for (const field of ["kind", "connectionId", "site", "id", "key"]) text3(source[field], `source ${field}`, field === "site" ? 2048 : 512);
-  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail6("INVALID_WORKTREE", "Unsupported tracker source identity");
+  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail6("INVALID_WORKTREE", "Unsupported tracker source identity");
   if (source.url !== void 0 || ["gitlab", "gitlab-mr"].includes(source.kind)) {
     text3(source.url, "source URL", 2048);
     if (!/^https:\/\/[^\s@]+$/.test(source.url)) fail6("INVALID_WORKTREE", "Unsupported tracker source URL");
@@ -1451,7 +1461,7 @@ function validateLaunchRequest(value) {
   if (r.branch !== void 0) text6(r.branch, "branch", 200);
   if (r.source) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text6(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
-    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail8("INVALID_LAUNCH", "Invalid source identity/URL/site");
+    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail8("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail8("INVALID_LAUNCH", "Source body exceeds the supported limit");
     if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail8("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
   }
@@ -2091,7 +2101,7 @@ var LaunchDialog = class {
 // src/shared/issue-board.js
 import { div as div3 } from "gpui-kit";
 import { v_flex as v_flex3, h_flex as h_flex3 } from "gpui-base";
-var groups = [{ key: "todo", title: "To do", color: "dim" }, { key: "inProgress", title: "In progress", color: "working" }, { key: "done", title: "Done", color: "done" }];
+var ALL_GROUPS = [{ key: "todo", title: "To do", color: "dim" }, { key: "inProgress", title: "In progress", color: "working" }, { key: "done", title: "Done", color: "done" }];
 var copy3 = (value) => JSON.parse(JSON.stringify(value));
 var issueCardId = (board, issue) => board + "-issue-" + issueIdentityKey(issue);
 var fail9 = () => {
@@ -2133,7 +2143,7 @@ function validLink(issue) {
     const site = trackerOrigin(issue.identity.site);
     if (site !== issue.identity.site) return false;
     if (issue.identity.kind === "jira") return /^[A-Za-z][A-Za-z0-9_]*-[1-9][0-9]*$/.test(issue.key) && issue.url === site + "/browse/" + issue.key;
-    if (issue.identity.kind === "gitlab") {
+    if (["gitlab", "shortcut"].includes(issue.identity.kind)) {
       validateIssue(issue);
       return true;
     }
@@ -2193,8 +2203,9 @@ function age(value, now2) {
 }
 function renderIssueBoard(options, cx) {
   const props2 = { id: "issue-board", ...options }, t = colors(), { id: id2, mod, state, view } = props2, data = view.data || [], narrow = (props2.width ?? state.width) < 768;
+  const groups = props2.columns ? ALL_GROUPS.filter((g) => props2.columns.includes(g.key)) : ALL_GROUPS;
   const searched = groupIssues(data, { query: state.query, status: "all" }), filtered = groupIssues(data, state.filters()), visible = state.status === "all" ? groups : groups.filter((g) => g.key === state.status), count = Object.values(filtered).reduce((n, rows) => n + rows.length, 0);
-  const unavailable = !data.length && ["error", "setup", "unbound"].includes(view.state), loading = !data.length && view.state === "loading", unknown = unavailable || loading;
+  const unavailable = !data.length && ["error", "setup", "unbound"].includes(view.state), loading = !data.length && view.state === "loading", idle = !data.length && view.state === "idle", unknown = unavailable || loading || idle;
   const choices = /* @__PURE__ */ new Map();
   for (const issue of data) {
     const key3 = JSON.stringify(issue.repoBinding.machine);
@@ -2219,12 +2230,12 @@ function renderIssueBoard(options, cx) {
   }))];
   const filters2 = (props2.width ?? state.width) < 360 ? v_flex3().id(id2 + "-filters-wrapped").gap(3).child(h_flex3().gap(3).items_center().children(filterButtons.slice(0, 2))).child(h_flex3().gap(3).items_center().children(filterButtons.slice(2))) : h_flex3().gap(3).items_center().children(filterButtons).child(div3().flex_1());
   const column = (group) => {
-    const rows = filtered[group.key], content = v_flex3().id(id2 + "-cards-" + group.key).gap(8).min_w(0).children(rows.map((issue) => card(props2, issue, choices.get(JSON.stringify(issue.repoBinding.machine)), narrow))).when(!rows.length, (el) => el.child(div3().id(id2 + "-empty-" + group.key).p(13).rounded(5).border(1).border_color(t.border).text_size(11).text_color(t.dim).child(loading ? "Loading issues…" : unavailable ? "Unavailable" : state.query ? "No matching issues" : "No " + group.title.toLowerCase() + " issues")));
+    const rows = filtered[group.key], content = v_flex3().id(id2 + "-cards-" + group.key).gap(8).min_w(0).children(rows.map((issue) => card(props2, issue, choices.get(JSON.stringify(issue.repoBinding.machine)), narrow))).when(!rows.length, (el) => el.child(div3().id(id2 + "-empty-" + group.key).p(13).rounded(5).border(1).border_color(t.border).text_size(11).text_color(t.dim).child(loading ? "Loading issues…" : idle ? "Not loaded yet. Refresh to load." : unavailable ? "Unavailable" : state.query ? "No matching issues" : "No " + group.title.toLowerCase() + " issues")));
     return v_flex3().id(id2 + "-column-" + group.key).min_w(narrow ? 0 : 220).max_w(narrow ? 460 : 360).gap(9).when(narrow, (el) => el.w_full()).when(!narrow, (el) => el.flex_1().h_full().min_h(0)).child(h_flex3().gap(6).px(2).h(22).items_center().child(div3().size(5).rounded_full().bg(t[group.color] || t.dim)).child(div3().text_size(11).font_semibold().text_color(t.muted).child(group.title)).child(label(unknown ? "?" : String(rows.length), { muted: true, size: 10 }))).child(narrow ? content : content.flex_1().min_h(0).overflow_y_scrollbar());
   };
   const body = narrow ? v_flex3().id(id2 + "-stacked").flex_1().min_h(0).overflow_y_scrollbar().gap(16).children(visible.map(column)) : h_flex3().id(id2 + "-columns").flex_1().min_h(0).items_start().overflow_x_scroll().gap(12).children(visible.map(column));
   const errors = view.errors || [], snapshotTimes = (view.bindings || []).map((b) => b.snapshot?.fetchedAt).filter(Number.isFinite), fetchedAt = snapshotTimes.length ? Math.min(...snapshotTimes) : null;
-  const footer = h_flex3().gap(8).items_center().text_size(10).text_color(t.dim).child(div3().flex_1().min_w(0).truncate().child(loading ? "Loading" : unavailable ? "Source unavailable" : String(count) + (state.query || state.status !== "all" ? " / " + data.length : "") + " loaded" + (fetchedAt !== null ? " · " + (errors.length ? "Cached · " : "") + "Updated " + age(fetchedAt, props2.now ?? Date.now()) : ""))).when(Boolean(view.truncated), (el) => el.child(label(view.limitReached ? "Select a space to see more" : "More results", { muted: true, size: 10 }))).when(Boolean(view.truncated && !view.limitReached && (view.bindings || []).some((b) => b.snapshot?.cursor)), (el) => el.child(textButton(id2 + "-load-more", "Load more", (_e, eventCx) => {
+  const footer = h_flex3().gap(8).items_center().text_size(10).text_color(t.dim).child(div3().flex_1().min_w(0).truncate().child(loading ? "Loading" : idle ? "Not loaded yet" : unavailable ? "Source unavailable" : (props2.manualRefresh && view.loading ? "Refreshing · " : "") + String(count) + (state.query || state.status !== "all" ? " / " + data.length : "") + " loaded" + (fetchedAt !== null ? " · " + (errors.length ? "Cached · " : "") + "Updated " + age(fetchedAt, props2.now ?? Date.now()) : ""))).when(Boolean(view.truncated), (el) => el.child(label(view.limitReached ? "Select a space to see more" : "More results", { muted: true, size: 10 }))).when(Boolean(view.truncated && !view.limitReached && (view.bindings || []).some((b) => b.snapshot?.cursor)), (el) => el.child(textButton(id2 + "-load-more", "Load more", (_e, eventCx) => {
     eventCx.stop_propagation();
     props2.onLoadMore?.(void 0, eventCx);
   }, { disabled: Boolean(view.loading) || typeof props2.onLoadMore !== "function" })));

@@ -1,6 +1,6 @@
 /**
  * Mission Control view navigation: the layout-node contract both layouts share, the one-button
- * view swap, the six work-source controls and the Classic work-panel toggle.
+ * view swap, the work-source controls and the Classic work-panel toggle.
  *
  * Contract consumed by the layouts (TASK-006):
  *   mc-main        the main region beside the rail, in both layouts. Its presence marks a
@@ -8,7 +8,7 @@
  *   mc-work-panel  Classic only: the side panel column [navigation block, mc-work-stack], hidden
  *                  at first. Its presence enables the panel toggle and the panel's hide button.
  *   mc-work-stack  a stack whose children are SOURCES ids (jira, github, pulls, gitlab, merges,
- *                  sessions, control-panel), each a block with that source's `mod` and `props` below.
+ *                  shortcut, sessions, control-panel), each a block with that source's `mod` and `props` below.
  *
  * Every action here takes its effects (run, shared, setShared) as arguments, so it holds no cx and
  * is testable without Herdr. The swap runs layout.switch only; selection and focus live in shared
@@ -29,13 +29,14 @@ export const NAV_STATE='mission-control-tabs-nav-v1';
 /** Which work sources the person turned off (Herdr keeps shared state across restarts). The mods stay installed. */
 export const SOURCES_STATE='mission-control-tabs-sources-v1';
 export const NODES=freeze({main:'mc-main',panel:'mc-work-panel',stack:'mc-work-stack'});
-/** The six distinct work sources, in navigation order, with the exact block content each stack child uses. */
+/** The distinct work sources, in navigation order, with the exact block content each stack child uses. */
 export const SOURCES=freeze([
   {id:'jira',label:'Jira',short:'Jira',icon:'jira',mod:'mission-control-jira',props:{view:'panel',hideHeader:true},scopeKey:'mission-control-jira-ui-v1'},
   {id:'github',label:'GitHub issues',short:'GitHub',icon:'github',mod:'mission-control-github',props:{view:'issues',hideHeader:true},scopeKey:'mission-control-github-ui-v1'},
   {id:'pulls',label:'Pull requests',short:'PRs',icon:'pull-request',mod:'mission-control-github',props:{view:'pulls',hideHeader:true},scopeKey:'mission-control-github-prs-ui-v1'},
   {id:'gitlab',label:'GitLab issues',short:'GitLab',icon:'gitlab',mod:'mission-control-gitlab',props:{view:'issues',hideHeader:true},scopeKey:'mission-control-gitlab-ui-v1'},
   {id:'merges',label:'Merge requests',short:'MRs',icon:'branch',mod:'mission-control-gitlab',props:{view:'merges',hideHeader:true},scopeKey:'mission-control-gitlab-mrs-ui-v1'},
+  {id:'shortcut',label:'Shortcut',short:'Shortcut',icon:'shortcut',mod:'mission-control-shortcut',props:{view:'panel',hideHeader:true},scopeKey:'mission-control-shortcut-ui-v1'},
   {id:'sessions',label:'Previous sessions',short:'Sessions',icon:'sessions',mod:'mission-control-sessions',props:{hideHeader:true},scopeKey:'mission-control-sessions-ui-v1'},
   // The Control panel covers the whole Herdr install, never one space: a fixed scope with its own caption.
   {id:'control-panel',label:'Control panel',short:'Control panel',icon:'layout',mod:'mission-control-control-panel',props:{hideHeader:true},scopeKey:null,fixedScope:'all',caption:'All installed'}

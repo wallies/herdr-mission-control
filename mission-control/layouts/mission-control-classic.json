@@ -222,6 +222,17 @@
                       }
                     },
                     {
+                      "id": "shortcut",
+                      "type": "block",
+                      "content": {
+                        "mod": "mission-control-shortcut",
+                        "props": {
+                          "view": "panel",
+                          "hideHeader": true
+                        }
+                      }
+                    },
+                    {
                       "id": "sessions",
                       "type": "block",
                       "content": {

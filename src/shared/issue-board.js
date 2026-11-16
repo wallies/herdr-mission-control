@@ -4,7 +4,7 @@ import {groupIssues,validateIssue,trackerOrigin,issueIdentityKey,TRACKER_GROUPS}
 import {toolChoices} from './launch-preferences.js';
 import {colors,label,icon,iconButton,textButton,toolIcon,createSearch,searchInput} from './ui.js';
 
-const groups=[{key:'todo',title:'To do',color:'dim'},{key:'inProgress',title:'In progress',color:'working'},{key:'done',title:'Done',color:'done'}];
+const ALL_GROUPS=[{key:'todo',title:'To do',color:'dim'},{key:'inProgress',title:'In progress',color:'working'},{key:'done',title:'Done',color:'done'}];
 const copy=value=>JSON.parse(JSON.stringify(value));
 export const issueCardId=(board,issue)=>board+'-issue-'+issueIdentityKey(issue);
 const fail=()=>{throw Object.assign(Error('Choose an available issue filter.'),{code:'INVALID_FILTER'});};
@@ -68,8 +68,9 @@ function age(value,now){const minutes=Math.max(0,Math.floor((now-value)/60000));
 /** A shared compact board for validated tracker Issue v1 snapshots. No source title is repeated. */
 export function renderIssueBoard(options,cx){
   const props={id:'issue-board',...options},t=colors(),{id,mod,state,view}=props,data=view.data||[],narrow=(props.width??state.width)<768;
+  const groups=props.columns?ALL_GROUPS.filter(g=>props.columns.includes(g.key)):ALL_GROUPS;
   const searched=groupIssues(data,{query:state.query,status:'all'}),filtered=groupIssues(data,state.filters()),visible=state.status==='all'?groups:groups.filter(g=>g.key===state.status),count=Object.values(filtered).reduce((n,rows)=>n+rows.length,0);
-  const unavailable=!data.length&&['error','setup','unbound'].includes(view.state),loading=!data.length&&view.state==='loading',unknown=unavailable||loading;
+  const unavailable=!data.length&&['error','setup','unbound'].includes(view.state),loading=!data.length&&view.state==='loading',idle=!data.length&&view.state==='idle',unknown=unavailable||loading||idle;
   const choices=new Map();for(const issue of data){const key=JSON.stringify(issue.repoBinding.machine);if(!choices.has(key))choices.set(key,toolChoices(props.toolsForMachine?.(issue.repoBinding.machine)||[],props.preferences||{}));}
   const control=(name,callback)=>iconButton(mod,id+'-'+name,name,name==='refresh'?'Refresh issues':'Integration settings',(_e,eventCx)=>callback?.(undefined,eventCx),{disabled:typeof callback!=='function'||name==='refresh'&&Boolean(view.loading)});
   const scope=h_flex().gap(3).items_center().child(statusFilter(id+'-scope-this','This space','',!view.all,(_e,eventCx)=>{eventCx.stop_propagation();props.onScopeChange?.(false,eventCx);},{disabled:typeof props.onScopeChange!=='function'})).child(statusFilter(id+'-scope-all','All spaces','',Boolean(view.all),(_e,eventCx)=>{eventCx.stop_propagation();props.onScopeChange?.(true,eventCx);},{disabled:typeof props.onScopeChange!=='function'}));
@@ -79,14 +80,14 @@ export function renderIssueBoard(options,cx){
   const filters=(props.width??state.width)<360?v_flex().id(id+'-filters-wrapped').gap(3).child(h_flex().gap(3).items_center().children(filterButtons.slice(0,2))).child(h_flex().gap(3).items_center().children(filterButtons.slice(2))):h_flex().gap(3).items_center().children(filterButtons).child(div().flex_1());
   const column=group=>{
     const rows=filtered[group.key],content=v_flex().id(id+'-cards-'+group.key).gap(8).min_w(0).children(rows.map(issue=>card(props,issue,choices.get(JSON.stringify(issue.repoBinding.machine)),narrow)))
-      .when(!rows.length,el=>el.child(div().id(id+'-empty-'+group.key).p(13).rounded(5).border(1).border_color(t.border).text_size(11).text_color(t.dim).child(loading?'Loading issues…':unavailable?'Unavailable':state.query?'No matching issues':'No '+group.title.toLowerCase()+' issues')));
+      .when(!rows.length,el=>el.child(div().id(id+'-empty-'+group.key).p(13).rounded(5).border(1).border_color(t.border).text_size(11).text_color(t.dim).child(loading?'Loading issues…':idle?'Not loaded yet. Refresh to load.':unavailable?'Unavailable':state.query?'No matching issues':'No '+group.title.toLowerCase()+' issues')));
     return v_flex().id(id+'-column-'+group.key).min_w(narrow?0:220).max_w(narrow?460:360).gap(9).when(narrow,el=>el.w_full()).when(!narrow,el=>el.flex_1().h_full().min_h(0))
       .child(h_flex().gap(6).px(2).h(22).items_center().child(div().size(5).rounded_full().bg(t[group.color]||t.dim)).child(div().text_size(11).font_semibold().text_color(t.muted).child(group.title)).child(label(unknown?'?':String(rows.length),{muted:true,size:10})))
       .child(narrow?content:content.flex_1().min_h(0).overflow_y_scrollbar());
   };
   const body=narrow?v_flex().id(id+'-stacked').flex_1().min_h(0).overflow_y_scrollbar().gap(16).children(visible.map(column)):h_flex().id(id+'-columns').flex_1().min_h(0).items_start().overflow_x_scroll().gap(12).children(visible.map(column));
   const errors=view.errors||[],snapshotTimes=(view.bindings||[]).map(b=>b.snapshot?.fetchedAt).filter(Number.isFinite),fetchedAt=snapshotTimes.length?Math.min(...snapshotTimes):null;
-  const footer=h_flex().gap(8).items_center().text_size(10).text_color(t.dim).child(div().flex_1().min_w(0).truncate().child(loading?'Loading':unavailable?'Source unavailable':String(count)+(state.query||state.status!=='all'?' / '+data.length:'')+' loaded'+(fetchedAt!==null?' · '+(errors.length?'Cached · ':'')+'Updated '+age(fetchedAt,props.now??Date.now()):'')))
+  const footer=h_flex().gap(8).items_center().text_size(10).text_color(t.dim).child(div().flex_1().min_w(0).truncate().child(loading?'Loading':idle?'Not loaded yet':unavailable?'Source unavailable':(props.manualRefresh&&view.loading?'Refreshing · ':'')+String(count)+(state.query||state.status!=='all'?' / '+data.length:'')+' loaded'+(fetchedAt!==null?' · '+(errors.length?'Cached · ':'')+'Updated '+age(fetchedAt,props.now??Date.now()):'')))
     .when(Boolean(view.truncated),el=>el.child(label(view.limitReached?'Select a space to see more':'More results',{muted:true,size:10})))
     .when(Boolean(view.truncated&&!view.limitReached&&(view.bindings||[]).some(b=>b.snapshot?.cursor)),el=>el.child(textButton(id+'-load-more','Load more',(_e,eventCx)=>{eventCx.stop_propagation();props.onLoadMore?.(undefined,eventCx);},{disabled:Boolean(view.loading)||typeof props.onLoadMore!=='function'})));
   const errorBanner=errors.length?h_flex().id(id+'-error').gap(7).items_center().text_color(t.muted).child(icon(mod,'issue',13))

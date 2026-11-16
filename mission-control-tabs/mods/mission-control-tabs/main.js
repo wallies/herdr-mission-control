@@ -86,11 +86,12 @@ function validateGitlabSelection(value) {
 function validateBinding(binding, key3, connections) {
   if (!object(binding)) fail("Repository bindings must be objects.");
   if (bindingKey(binding.machine, binding.repoRoot) !== key3) fail("A repository binding does not match its machine/root key.");
-  for (const source of ["jira", "github", "gitlab"]) {
+  for (const source of ["jira", "github", "gitlab", "shortcut"]) {
     if (binding[source] === void 0) continue;
     const selected = binding[source];
     if (!object(selected) || typeof selected.connectionId !== "string" || !Object.hasOwn(connections, selected.connectionId)) fail("A tracker binding must reference an existing connection.");
     if (source === "jira" && !selected.project && !selected.jql) fail("A Jira binding needs a project or JQL filter.");
+    if (source === "shortcut" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.workspace !== "string" || !selected.workspace)) fail("A Shortcut binding needs its owner and workspace.");
     if (source === "github" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.repo !== "string" || !selected.repo)) fail("A GitHub binding needs its owner and repository.");
     if (source === "gitlab") validateGitlabSelection(selected);
   }
@@ -462,7 +463,7 @@ function resolveWorktreeChoice(request, { spaceName, value = "", branch = "" } =
 function sourceIdentity(source) {
   if (!source) return null;
   for (const field of ["kind", "connectionId", "site", "id", "key"]) text2(source[field], `source ${field}`, field === "site" ? 2048 : 512);
-  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail5("INVALID_WORKTREE", "Unsupported tracker source identity");
+  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail5("INVALID_WORKTREE", "Unsupported tracker source identity");
   if (source.url !== void 0 || ["gitlab", "gitlab-mr"].includes(source.kind)) {
     text2(source.url, "source URL", 2048);
     if (!/^https:\/\/[^\s@]+$/.test(source.url)) fail5("INVALID_WORKTREE", "Unsupported tracker source URL");
@@ -1097,7 +1098,7 @@ function validateLaunchRequest(value) {
   if (r.branch !== void 0) text5(r.branch, "branch", 200);
   if (r.source) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text5(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
-    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
+    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail7("INVALID_LAUNCH", "Source body exceeds the supported limit");
     if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail7("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
   }
@@ -2671,7 +2672,7 @@ var fail9 = (code, message) => {
 };
 var NAME_LIMITS = Object.freeze({ displayPx: 280, charPx: 7, chars: 80, titleChars: 200, storedChars: 1024, entries: 1e3, retired: 64, bytes: 512 * 1024 });
 var NAME_TIMING = Object.freeze({ settleMs: 2500, pendingMs: 1e4, retryMs: 5e3, maxRetryMs: 6e4, tries: 3, intentMs: 15e3, missingMs: 3e4, unavailableMs: 7 * 864e5, retiredMs: 864e5 });
-var SOURCE_KINDS = Object.freeze(["jira", "github", "github-pr", "gitlab", "gitlab-mr"]);
+var SOURCE_KINDS = Object.freeze(["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"]);
 var clone5 = (v) => JSON.parse(JSON.stringify(v));
 var freeze2 = (v) => {
   if (v && typeof v === "object" && !Object.isFrozen(v)) {
@@ -2698,7 +2699,7 @@ function cleanText(value, max = NAME_LIMITS.chars) {
   const s = value.replace(CONTROL, " ").replace(INVISIBLE, "").replace(/\s+/g, " ").trim();
   return s ? clip(s, max) : null;
 }
-var KEY = /^[A-Z][A-Z0-9_]{0,30}(?:-[A-Z]{1,8})?-[1-9][0-9]{0,11}$/;
+var KEY = /^(?:[A-Z][A-Z0-9_]{0,30}(?:-[A-Z]{1,8})?-[1-9][0-9]{0,11}|sc-[1-9][0-9]{0,15})$/;
 var issueKey = (v) => typeof v === "string" && KEY.test(v) ? v : null;
 var stripKey = (title, key3) => {
   const m = title.match(new RegExp("^[\\[(]?" + key3.replace(/[-]/g, "\\-") + "[\\])]?(?:[\\s:·–—-]+|$)"));
@@ -5701,6 +5702,7 @@ var SOURCES2 = freeze8([
   { id: "pulls", label: "Pull requests", short: "PRs", icon: "pull-request", mod: "mission-control-github", props: { view: "pulls", hideHeader: true }, scopeKey: "mission-control-github-prs-ui-v1" },
   { id: "gitlab", label: "GitLab issues", short: "GitLab", icon: "gitlab", mod: "mission-control-gitlab", props: { view: "issues", hideHeader: true }, scopeKey: "mission-control-gitlab-ui-v1" },
   { id: "merges", label: "Merge requests", short: "MRs", icon: "branch", mod: "mission-control-gitlab", props: { view: "merges", hideHeader: true }, scopeKey: "mission-control-gitlab-mrs-ui-v1" },
+  { id: "shortcut", label: "Shortcut", short: "Shortcut", icon: "shortcut", mod: "mission-control-shortcut", props: { view: "panel", hideHeader: true }, scopeKey: "mission-control-shortcut-ui-v1" },
   { id: "sessions", label: "Previous sessions", short: "Sessions", icon: "sessions", mod: "mission-control-sessions", props: { hideHeader: true }, scopeKey: "mission-control-sessions-ui-v1" },
   // The Control panel covers the whole Herdr install, never one space: a fixed scope with its own caption.
   { id: "control-panel", label: "Control panel", short: "Control panel", icon: "layout", mod: "mission-control-control-panel", props: { hideHeader: true }, scopeKey: null, fixedScope: "all", caption: "All installed" }
@@ -5931,7 +5933,7 @@ var VIEWS = Object.freeze(["topbar", "navigation", "menu", "launch", "settings",
 var COMMANDS = Object.freeze(["new", "settings", "sources", "reopen-tab", "reopen-agent", "swap", "panel", "rename", "automatic-name", "close", ...SOURCES2.map((s) => "source-" + s.id)]);
 var TIMING = Object.freeze({ tickMs: 1e3, tickStaleMs: 2e4, pressMs: 6e3, closeMs: 1e4, reopenStaleMs: 95e3, requestMs: 5e3, namesMs: 6e4, wheelMs: 160, commandMs: 750, reopenReadMs: 2e3 });
 var STATUS = Object.freeze({ working: "Working", blocked: "Needs input", done: "Done", idle: "Idle" });
-var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "search", "sessions", "settings"]);
+var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "search", "sessions", "settings", "shortcut"]);
 var TOPBAR_WIDE = 720;
 var DIALOG_VIEWS = /* @__PURE__ */ new Set(["menu", "launch", "settings"]);
 var plain6 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

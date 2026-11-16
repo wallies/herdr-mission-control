@@ -97,3 +97,7 @@ panel: Original Mission Control artwork; MIT
 ---
 
 pin: Original Mission Control artwork; MIT
+
+---
+
+shortcut: Original Mission Control artwork; MIT

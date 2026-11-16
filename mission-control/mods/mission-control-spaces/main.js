@@ -86,11 +86,12 @@ function validateGitlabSelection(value) {
 function validateBinding(binding, key3, connections) {
   if (!object(binding)) fail("Repository bindings must be objects.");
   if (bindingKey(binding.machine, binding.repoRoot) !== key3) fail("A repository binding does not match its machine/root key.");
-  for (const source of ["jira", "github", "gitlab"]) {
+  for (const source of ["jira", "github", "gitlab", "shortcut"]) {
     if (binding[source] === void 0) continue;
     const selected = binding[source];
     if (!object(selected) || typeof selected.connectionId !== "string" || !Object.hasOwn(connections, selected.connectionId)) fail("A tracker binding must reference an existing connection.");
     if (source === "jira" && !selected.project && !selected.jql) fail("A Jira binding needs a project or JQL filter.");
+    if (source === "shortcut" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.workspace !== "string" || !selected.workspace)) fail("A Shortcut binding needs its owner and workspace.");
     if (source === "github" && (typeof selected.owner !== "string" || !selected.owner || typeof selected.repo !== "string" || !selected.repo)) fail("A GitHub binding needs its owner and repository.");
     if (source === "gitlab") validateGitlabSelection(selected);
   }
@@ -539,7 +540,7 @@ function resolveWorktreeChoice(request, { spaceName, value = "", branch = "" } =
 function sourceIdentity(source) {
   if (!source) return null;
   for (const field of ["kind", "connectionId", "site", "id", "key"]) text2(source[field], `source ${field}`, field === "site" ? 2048 : 512);
-  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail5("INVALID_WORKTREE", "Unsupported tracker source identity");
+  if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(source.site)) fail5("INVALID_WORKTREE", "Unsupported tracker source identity");
   if (source.url !== void 0 || ["gitlab", "gitlab-mr"].includes(source.kind)) {
     text2(source.url, "source URL", 2048);
     if (!/^https:\/\/[^\s@]+$/.test(source.url)) fail5("INVALID_WORKTREE", "Unsupported tracker source URL");
@@ -1174,7 +1175,7 @@ function validateLaunchRequest(value) {
   if (r.branch !== void 0) text5(r.branch, "branch", 200);
   if (r.source) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text5(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
-    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
+    if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail7("INVALID_LAUNCH", "Source body exceeds the supported limit");
     if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail7("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
   }

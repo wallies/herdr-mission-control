@@ -69,3 +69,7 @@ sessions: Original Mission Control artwork; MIT
 ---
 
 settings: Original Mission Control artwork; MIT
+
+---
+
+shortcut: Original Mission Control artwork; MIT
