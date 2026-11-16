@@ -107,9 +107,9 @@ export default class MissionControlAgents extends View{
     return v_flex().id('agents-list').size_full().min_h(0).bg(t.chrome).text_size(12)
       .child(sectionHeader(MOD,'agents','Agents',model.count,{collapsed:s.collapsed,toggle:()=>edit(s=>{s.collapsed=!s.collapsed;}),actions:[iconButton(MOD,'agents-priority','priority','Priority',()=>edit(s=>{s.mode='priority';}),{active:s.mode==='priority',size:24}),iconButton(MOD,'agents-spaces','spaces','Group by space',()=>edit(s=>{s.mode='spaces';}),{active:s.mode==='spaces',size:24}),iconButton(MOD,'agents-cloud-add','cloud','Follow a cloud session',(_e,cx)=>this.cloud.toggleAdd(cx),{active:this.cloud.adding,size:24}),iconButton(MOD,'agents-sources','settings','Usage sources',()=>this.openSources(),{size:24})]}))
       .when(!s.collapsed,e=>e.child(div().px(10).pb(6).child(searchInput(MOD,'agent-search',this.search)))
-        .child(v_flex().id('agent-groups').flex_1().min_h(0).px(7).pb(7).gap(5).overflow_y_scrollbar().children(model.groups.map(group=>v_flex().gap(1)
+        .child(v_flex().id('agent-groups').flex_1().min_h(0).px(7).pb(7).gap(5).overflow_y_scrollbar().when(Boolean(cloud),e=>e.child(cloud)).children(model.groups.map(group=>v_flex().gap(1)
           .child(h_flex().h(23).px(4).gap(6).items_center().child(label(group.label,{muted:true,size:10})).when(Boolean(group.machine),e=>e.child(label(group.machine,{muted:true,size:9}))))
-          .children(group.rows.map(row=>this.row(row))))).when(Boolean(cloud),e=>e.child(cloud)))
+          .children(group.rows.map(row=>this.row(row))))))
         .when(!model.rows.length&&!cloud,e=>e.child(div().p(12).text_size(11).text_color(t.dim).child(model.count?'No matching agents.':'No agents running.'))));
   }
   close(){this.closed=true;this.cloud?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.telemetry.close();for(const input of this.inputs)input.release();}

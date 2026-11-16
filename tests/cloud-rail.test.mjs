@@ -41,6 +41,8 @@ function texts(root){const result=[];const walk=node=>{if(typeof node==='string'
 test('cloud rows show beside local agents with a cloud marker, title, repo and status, and open their link',async()=>{
   const f=fixture({helper:()=>({v:1,ok:true,operation:'pulls',checkedAt:5,found:{[ID]:null}})});await f.flush();const tree=f.render();
   assert.ok(findElement(tree,'agent-t1'),'local agents are unchanged');
+  const order=[];const collect=node=>{if(node instanceof Element){if(node.semanticId)order.push(node.semanticId);node.nodes.forEach(collect);}};collect(tree);
+  assert.ok(order.indexOf('cloud-sessions')>=0&&order.indexOf('cloud-sessions')<order.indexOf('agent-t1'),'the Cloud group sits above the local agents, so its form is in view');
   const row=findElement(tree,'cloud-'+ID),values=texts(row);
   assert.ok(values.includes('sc-69416 Fix the export'));assert.ok(values.includes('acme/botanic · Started'));
   assert.ok(findElement(row,'cloud-'+ID+'-message'));assert.ok(findElement(row,'cloud-'+ID+'-teleport'));assert.ok(findElement(row,'cloud-'+ID+'-remove'));

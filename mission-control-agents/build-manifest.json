@@ -34,7 +34,7 @@
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
     "backend.mjs": "22ea04f400246a4b7df02894a57d8f5f47d7f17e4a358b21991329120078a69a",
     "collector.py": "98f7a98ee3ee1f6b9cbd1da3c2ab941c92123c2168d6f5630be4da81ca8caf92",
-    "main.js": "d7687b48fad6b1f9691fbdc834f42022b268aa46e014873c98c73cf7872adf64",
+    "main.js": "1faed6955680946572034afb6d7dd5ae865fa82624c68896ef33e1b2d968119a",
     "mod.json": "19f9c364e74121c1f44dabf649b90daadcdcbdc46ee5b813aa6275ecd312159d",
     "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
   },
@@ -44,7 +44,7 @@
     "src/mods/mission-control-agents/cloud-data.js": "fe3e9c503c6822c3a7e91e36d3c399d7862cc204eae92b3a344fac51f144a683",
     "src/mods/mission-control-agents/cloud-rail.js": "5952193b0d04a1297a07c741ea38986309698c694e88a35da0496495d7d4f309",
     "src/mods/mission-control-agents/cloud.mjs": "3914d532f738476fe02cd066f4391553f29a054c12af7443277f569d4f44ece6",
-    "src/mods/mission-control-agents/main.js": "8915daef75a19a5e998d28a7bef87ca55e376c019eaeeb49f8875a33299da0db",
+    "src/mods/mission-control-agents/main.js": "34aff42b946e918d01c16b08ef3d00dbf495ed6e60fa9a7460ac17e99684cff4",
     "src/mods/mission-control-agents/mod.json": "713695128ab46876c55332e4f9dab8b2999fb6d3d923127ae6ad0e9f131f8a13",
     "src/mods/mission-control-agents/model.js": "957bccdae59efad95aabe5540948f7094859e718ff358b962a4e142015355474",
     "src/shared/cloud-sessions.js": "e808945eead952a2e6c4fdb536fa6fdf08e6c707c7b179e84fa5dfbf4e90984d",
