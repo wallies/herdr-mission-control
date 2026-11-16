@@ -1,0 +1,43 @@
+{
+  "v": 1,
+  "name": "mission-control-reviews",
+  "artifacts": {
+    "assets/agent.svg": "e1b2039d6c2635ffcfddceff99109fb03e8ccb40359aed00fa88a6f3d8ad3eed",
+    "assets/close.svg": "28e7ce6d33be8f07dedad8e80ee59e816b81a0e845f64613e3bb51c357da925b",
+    "assets/folder.svg": "3a46023f1ff23f2112b9e0955ad32690139e8f1c071ccfdbcae8e85295365f66",
+    "assets/github.svg": "b4ababc5c6d3ed662798989f5e1a3c4b819767438997b1e1ca020542b77337bf",
+    "assets/pull-request.svg": "93efcc8c2e7e799df7b597de85ee1e0ae2e7d3fb402bff6d96428afbaf17e7d4",
+    "assets/refresh.svg": "a4ef0613fb0794ae6554ccacbe332a0f7a6bfd346ebe94d209b112796462640a",
+    "assets/review.svg": "32baf3d95f1190c8466ef1f9614d584ccb895f303b2fb09c3f8f521eb38b9b17",
+    "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
+    "backend.mjs": "90ed0782409b3bae1099cb6a7043a681bb4fda13d5a6cd79f803389ce2b1b0aa",
+    "main.js": "1f4098bafed9a157e711db16617308ed867d2441d6c3afaca778601587e4542e",
+    "mod.json": "2c881fafd15652adb01831363556811e0044b241b28da239a4c19cc835761b5e",
+    "NOTICE.md": "8c4171f1674a94038e7435af3225b75f65dadc6f59783e9da0234d08fa71542e"
+  },
+  "sources": {
+    "src/assets/icons.json": "36892381fd91e665a92096473806bf56f55d6f4e86227ab586987be7e10d9bb8",
+    "src/mods/mission-control-reviews/backend.mjs": "1d3c3942ef6efae716d9a92cd6fff4e42bcd1b37bc91a618e8324f3885eb63a0",
+    "src/mods/mission-control-reviews/checkout.js": "0561a367421402eeb7ccae61b24a47d3c9040b0ab4ae8f952a55c6c699335634",
+    "src/mods/mission-control-reviews/data.js": "39d616f8920e4e99ac01c43fc48e5f02b81dce9a4d72890912fe6b4c230bb438",
+    "src/mods/mission-control-reviews/main.js": "43565077b189663f95c746a436699418aacec26ff5084ed351725bfd5837144f",
+    "src/mods/mission-control-reviews/mod.json": "94611e7b623cb793941f3192eb0e38aa4ca30946625d752ad035cf67988c61a5",
+    "src/mods/mission-control-reviews/model.js": "5a7285e59d7c987f4e9806b41e139265b3afc618db18fcd12df435f90321e947",
+    "src/mods/mission-control-reviews/reviews.mjs": "531455b86bd7d2ee45f957aa974b1e54ded99fbd0dd4055b286b7e6d24a8135b",
+    "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",
+    "src/shared/github-auth.mjs": "d5362c6f998e343ca58994cf66634ea4404403964f0058da75537fa666c5d2ed",
+    "src/shared/github-site.js": "db95c4edf0176bd39e7898658cbae5f78ed0d42db582f6663cdca4477569d8c4",
+    "src/shared/launch-dialog.js": "c5c2a128bff69e847c5b3f3fed408d2266c71768b8f5c85dc936c33b8429b894",
+    "src/shared/launch-preferences.js": "c70132d68a264054de91a25704c44c7f6c6cb2e380c93f6807842bdca5558fd9",
+    "src/shared/launch.js": "d4d6573d85f47137b8f868d03b9495b46563ff0570caabdbedfe2f9962084d0f",
+    "src/shared/name-ownership.js": "24f4e7060bffdb1559e76091039fc1b1e076095d72cc8b44c14596d8a37ae784",
+    "src/shared/session-bindings.js": "8ce735273c2d4e8ee9e63bed0036276d8afa69fc92f40c22fa30ddd10c815d99",
+    "src/shared/session-identity.js": "9cb414ff020c4c49c66018f8146f41261975790a4d4349da18f278f60131617e",
+    "src/shared/space-repo.js": "464ff46525dc00fd74813104bb9fcc770d10fef2eb366decc6f18125a6f62d07",
+    "src/shared/tool-capabilities.js": "31bbf19a27d0621a8d758fdcb6d4f46a1788bd96d5d80331a938999df9012f05",
+    "src/shared/tracker-model.js": "c579963b42c2f89e5c73be7fb450be181c4248bd2cc672dcb084fdaadc557891",
+    "src/shared/tracker-transport.mjs": "57fa2b25597aa94b39aa5a58d0a91ba39f60897d7e24bcbfcd09b783c0404137",
+    "src/shared/ui.js": "63653a7db2c610678b687fe0263aa078f9458336d411b5be4335cba2a4b8533b",
+    "src/shared/worktrees.js": "d03aadea1b5b8717fd26786a88200e1e9e161aa3888347733cb1959abcb4945f"
+  }
+}

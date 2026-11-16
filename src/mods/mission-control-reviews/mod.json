@@ -1,0 +1,7 @@
+{
+  "title": "Mission Control · Reviews",
+  "place": "right",
+  "size": 380,
+  "overlay": { "kind": "dialog", "width": 1080, "height": 760 },
+  "build": { "assets": ["agent", "close", "folder", "github", "pull-request", "refresh", "review", "settings"] }
+}
