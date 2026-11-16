@@ -88,8 +88,8 @@ test('concurrent same qualified issue creates one real worktree/tab and task pro
  const call=f.calls.find(c=>c.cmd==='herdr-app'&&c.args[0]==='do');const parsed=JSON.parse(call.args[2]);assert.match(parsed.task,/\$\(this is task data\)/);assert.ok(Array.isArray(parsed.argv));
  assert.ok(f.calls.filter(c=>c.cmd==='git').every(c=>!c.args.some(a=>a.includes('task data'))));
 });
-test('a source with its own task sends exactly that task, so a leading slash command stays first',async t=>{
- const f=await fixture(t),task='/pr-review:review-this https://jira.example.invalid/browse/WEB-142';
+test('a source with its own task sends exactly that task, with no wrapper or source body',async t=>{
+ const f=await fixture(t),task='Use the review-this skill on https://jira.example.invalid/browse/WEB-142.';
  const sent=await launch({...request(f.repo,'exact-task'),source:{...issue(),task}},f.io);assert.equal(sent.ok,true,JSON.stringify(sent));
  const call=f.calls.find(c=>c.cmd==='herdr-app'&&c.args[0]==='do');assert.equal(JSON.parse(call.args[2]).task,task);
  for(const bad of ['',task+'\nmore','x'.repeat(2049),7]){const result=await launch({...request(f.repo,'bad-task-'+String(bad).length),source:{...issue(),id:'1000'+String(bad).length,task:bad}},f.io);assert.equal(result.code,'INVALID_LAUNCH',JSON.stringify(result));}

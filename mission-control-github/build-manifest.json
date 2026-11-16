@@ -28,7 +28,7 @@
     "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "backend.mjs": "d483b5202eaa59dd6ecaa95841bb7ba97a0d0949e0fa78a68bddf8b144ae172f",
-    "main.js": "afd17f94ac66651d89a5d9c6ce3cbbb746d58d5419db803dd7add443adca5454",
+    "main.js": "f77d210afef4d175c2e3430abea3eea583e9670a25d3d3984e174c2be862e106",
     "mod.json": "0465ac8f0599cf876bd27a29dec75eb3ffea9a1a3713889df29a95116af944ef",
     "NOTICE.md": "f20f37f2705da9d37b502d64fbe21f68f7db7280f83369013586be19e747c873"
   },
@@ -40,7 +40,7 @@
     "src/mods/mission-control-github/issues.mjs": "7dbc13ee84a17d9d0cadc8cc4c1356fc7c96c5881ad43775b2a8d55dfa9b29f7",
     "src/mods/mission-control-github/main.js": "bd9dc29afc1a72a77fdc9771fa3a471d6ddf80102cb08c89fc0291c4b6138c58",
     "src/mods/mission-control-github/mod.json": "1718dcc6cf19b5f2df49667efe079070ce015ee8a5f7b409b06e76ee3df239b1",
-    "src/mods/mission-control-github/pull-model.js": "2946dfa910bd7baef34592e78768372c107f4a9eba60f63f2ce63b8dc32cccfc",
+    "src/mods/mission-control-github/pull-model.js": "0cd81c03aad9097729515c34f2f47f2984c4c94db83577528d55facc4750badf",
     "src/mods/mission-control-github/pulls-view.js": "9c5c205344259be70169dd31131eb5c34e1a58cd538fc77df07695d5db5970d9",
     "src/mods/mission-control-github/pulls.mjs": "8cb8841bd1c0c1b1db46ae1852a634d4be5135e96bf7380a7bcaac2a25e25b76",
     "src/shared/config.js": "2cea2d16c0faed2eef2f8105b0adc0c6098cf556a84297249b5bd9895eddf9a7",

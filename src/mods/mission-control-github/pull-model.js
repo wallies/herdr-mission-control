@@ -94,23 +94,23 @@ export function prActionAvailability(value,action){
   return p.checks.state==='failure'?{enabled:true}:p.checks.state==='unavailable'?disabled(p.checks.reason):{enabled:false};
 }
 export function prDetailCursor(value){const p=validatePullRequest(value);return JSON.stringify({v:1,kind:'pr-detail',identity:p.identity,headSha:p.head.sha,baseSha:p.base.sha});}
-// Each action runs a pr-review plugin skill, which reads the PR itself: no PR text enters the task.
+// Each action runs a PR skill, which reads the PR itself: no PR text enters the task.
 const actionSkills={
-  review:['Review pull request','pr-review:review-this',''],
-  addressComments:['Address review comments','pr-review:review-pr-feedback',''],
-  fixChecks:['Fix failing checks','pr-review:ship-pr',' Fix the failing checks only.'],
-  ship:['Ship pull request','pr-review:ship-pr','']
+  review:['Review pull request','review-this',''],
+  addressComments:['Address review comments','review-pr-feedback',''],
+  fixChecks:['Fix failing checks','ship-pr',' Fix the failing checks only.'],
+  ship:['Ship pull request','ship-pr','']
 };
 function clip(value,maxBytes,maxChars=Infinity){let result='',bytes=0;for(const c of value){const size=utf8Bytes(c);if(bytes+size>maxBytes||result.length+c.length>maxChars)break;bytes+=size;result+=c;}return result;}
-/** Claude Code runs a skill only from a leading slash command; other tools get the skill by name. */
-export function prTaskText(action,toolKey,url){
+/** The skill by name, never a slash command: whichever copy is installed (a plugin's or a personal one) answers. */
+export function prTaskText(action,url){
   const [,skill,scope]=actionSkills[action];
-  return toolKey==='claude'?`/${skill} ${url}${scope}`:`Use the ${skill.split(':')[1]} skill on ${url}.${scope}`;
+  return `Use the ${skill} skill on ${url}.${scope}`;
 }
 /** Controlled task data feeds shared launch's exact task, never optional flags. */
 export function prLaunchSource(value){
   const request=validatePRActionRequest(value),p=request.pull,available=prActionAvailability(p,request.action);
   if(!available.enabled)throw new PullModelError('PR_ACTION_UNAVAILABLE',available.reason);
   const [prefix]=actionSkills[request.action],i=p.identity;
-  return {kind:'github-pr',connectionId:i.connectionId,site:i.site,id:lower(i.owner)+'/'+lower(i.repo)+'#'+i.number,key:p.key,title:clip(prefix+': '+p.title,Infinity,512),url:p.url,task:prTaskText(request.action,request.toolKey,p.url)};
+  return {kind:'github-pr',connectionId:i.connectionId,site:i.site,id:lower(i.owner)+'/'+lower(i.repo)+'#'+i.number,key:p.key,title:clip(prefix+': '+p.title,Infinity,512),url:p.url,task:prTaskText(request.action,p.url)};
 }

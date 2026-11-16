@@ -71,7 +71,7 @@
     "mods/mission-control-github/assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
     "mods/mission-control-github/assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "mods/mission-control-github/backend.mjs": "d483b5202eaa59dd6ecaa95841bb7ba97a0d0949e0fa78a68bddf8b144ae172f",
-    "mods/mission-control-github/main.js": "afd17f94ac66651d89a5d9c6ce3cbbb746d58d5419db803dd7add443adca5454",
+    "mods/mission-control-github/main.js": "f77d210afef4d175c2e3430abea3eea583e9670a25d3d3984e174c2be862e106",
     "mods/mission-control-github/mod.json": "0465ac8f0599cf876bd27a29dec75eb3ffea9a1a3713889df29a95116af944ef",
     "mods/mission-control-github/NOTICE.md": "f20f37f2705da9d37b502d64fbe21f68f7db7280f83369013586be19e747c873",
     "mods/mission-control-gitlab/assets/agent.svg": "e1b2039d6c2635ffcfddceff99109fb03e8ccb40359aed00fa88a6f3d8ad3eed",
@@ -211,6 +211,6 @@
     "mods/mission-control-tabs/mod.json": "21a3ac7b84f85a6c8de03c9f10bf72ac0d9f5c56d938db0fcf39d0b0aa11b4d0",
     "mods/mission-control-tabs/NOTICE.md": "4e408d28539b58cdd9b665e5a4fee5c505dd7afa3a3ad5a0b9755fff7fbcf6cd",
     "preview.png": "8d3de41c147a654de7c1fe219de6f0cc5a37b38d75ee0cc0d8979a20d15ed470",
-    "RECIPE.md": "489d741eb6bc6e8347f4247ce4ef0cb6f6d74f3d5f249c1bd11e3dc93d5b34ab"
+    "RECIPE.md": "24e06e6f7e925b3965142d5e57fcac7754600020c0248542525d2026b13ed4cd"
   }
 }

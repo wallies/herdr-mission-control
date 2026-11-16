@@ -72,14 +72,14 @@ test('pure schema validates author, refs, independent discussions, source scope 
 
 test('PR actions preserve canonical remote identity and exact controlled task intent',()=>{
   const p=sample(),url=p.url,cases=[
-    ['review','Review pull request','/pr-review:review-this '+url,'Use the review-this skill on '+url+'.'],
-    ['addressComments','Address review comments','/pr-review:review-pr-feedback '+url,'Use the review-pr-feedback skill on '+url+'.'],
-    ['fixChecks','Fix failing checks','/pr-review:ship-pr '+url+' Fix the failing checks only.','Use the ship-pr skill on '+url+'. Fix the failing checks only.'],
-    ['ship','Ship pull request','/pr-review:ship-pr '+url,'Use the ship-pr skill on '+url+'.']];
-  const sources=cases.map(([verb,prefix,claudeTask,otherTask])=>{
+    ['review','Review pull request','Use the review-this skill on '+url+'.'],
+    ['addressComments','Address review comments','Use the review-pr-feedback skill on '+url+'.'],
+    ['fixChecks','Fix failing checks','Use the ship-pr skill on '+url+'. Fix the failing checks only.'],
+    ['ship','Ship pull request','Use the ship-pr skill on '+url+'.']];
+  const sources=cases.map(([verb,prefix,task])=>{
     const source=prLaunchSource(action(p,verb));assert.equal(source.id,'acme/web#42');assert.equal(source.key,'GH-PR-42');assert.equal(source.title,prefix+': '+p.title);
-    assert.equal(source.task,claudeTask);assert.equal(source.body,undefined,'the PR description never enters the task');
-    assert.equal(prLaunchSource({...action(p,verb),toolKey:'codex'}).task,otherTask);return source;});
+    assert.equal(source.task,task);assert.equal(source.body,undefined,'the PR description never enters the task');
+    assert.equal(prLaunchSource({...action(p,verb),toolKey:'codex'}).task,task,'every tool gets the same request, so any installed copy of the skill answers');return source;});
   assert.equal(new Set(sources.map(s=>s.id)).size,1);const other=copy(p);other.identity.repo='Other';other.repoBinding.github.repo='Other';other.url='https://github.com/Acme/Other/pull/42';other.head.repoFullName='Acme/Other';assert.notEqual(prLaunchSource(action(other)).id,sources[0].id);assert.notEqual(pullIdentityKey(other),pullIdentityKey(p));
   const large=copy(p);large.title='x'.repeat(490)+'😀'.repeat(10);const source=prLaunchSource(action(large));assert.equal(source.title.length,511);assert.ok(!/[\ud800-\udbff]$/.test(source.title),'the title is never cut inside a character');
 });
