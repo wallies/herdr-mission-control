@@ -28,3 +28,6 @@ evidence/native/install.json
 .ulpi/execution.private.json
 # Archived plan snapshots stay local; only the review ledger and round records are published.
 evidence/reviews/*/
+# herdr-app check writes these into every checked mod folder.
+gpui-kit.d.ts
+jsconfig.json
