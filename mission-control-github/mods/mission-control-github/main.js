@@ -1437,6 +1437,8 @@ var text6 = (v, name4, max = 256) => {
   if (typeof v !== "string" || !v || v.length > max || ["__proto__", "constructor", "prototype"].includes(v) || /[\u0000-\u001f]/.test(v)) fail8("INVALID_LAUNCH", `Invalid ${name4}`);
   return v;
 };
+var TASK_MAX = 4e3;
+var validTask = (v) => typeof v === "string" && v.length > 0 && v.length <= TASK_MAX && !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(v);
 var now = (io) => io.clock ? io.clock() : Date.now();
 var uuid2 = () => {
   const a = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
@@ -1463,7 +1465,7 @@ function validateLaunchRequest(value) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text6(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
     if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail8("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail8("INVALID_LAUNCH", "Source body exceeds the supported limit");
-    if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail8("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
+    if (r.source.task !== void 0 && !validTask(r.source.task)) fail8("INVALID_LAUNCH", `Source task must be at most ${TASK_MAX} characters, with new lines but no other control characters`);
   }
   r.options = validateToolOptions(Object.fromEntries(["model", "reasoning", "instructions", "skill", "subagents"].filter((k) => r[k] !== void 0).map((k) => [k, r[k]])));
   return r;
@@ -1825,11 +1827,17 @@ function searchInput(mod, id2, state) {
 function openLaunchDialog(mod, herdr2, { spaceId, machine: machine3 = null, source, target, toolKey, view = "launch" } = {}) {
   return herdr2.openOverlay({ mod, kind: "dialog", width: 560, height: 660, props: { view, spaceId, machine: machine3, source, target, toolKey } });
 }
-async function quickStart({ target, source, toolKey, worktree }, io) {
+async function quickStart({ target, source, toolKey, worktree, worktreeName }, io) {
   try {
     const config = (await readConfig(io)).value, p = validateLaunchPreferences(config.preferences.launch), tools = await io.knownAgents({ on: target.machine });
     if (!toolChoices(tools, p).quick.some((t) => t.key === toolKey)) return { ok: false, code: "SHORTCUT_UNAVAILABLE", message: "This shortcut is no longer pinned and installed on the destination machine." };
-    return launch({ ...newIntent(), ...target, toolKey, source, worktree: worktree ?? p.worktree, ...p.tools[toolKey] || {} }, io);
+    const request = { ...newIntent(), ...target, toolKey, source, worktree: worktree ?? p.worktree, ...p.tools[toolKey] || {} };
+    if (worktreeName !== void 0) {
+      if (!request.worktree) return { ok: false, code: "INVALID_LAUNCH", message: "A worktree name needs a new worktree." };
+      const spaceName = io.spaces().find((s) => s.id === target.spaceId && machineIdentity(s.machine) === machineIdentity(target.machine))?.name;
+      Object.assign(request, resolveWorktreeChoice(request, { spaceName, value: worktreeName }));
+    }
+    return launch(request, io);
   } catch (e) {
     return { ok: false, code: e.code || "LAUNCH_SETTINGS", message: e.code ? e.message : "Agent shortcuts could not be loaded." };
   }
@@ -2468,12 +2476,6 @@ function profile(value) {
   const env = Object.hasOwn(value, "credentialEnv"), gh = Object.hasOwn(value, "gh");
   if (env === gh || env && !/^[A-Za-z_][A-Za-z0-9_]{0,127}$/.test(value.credentialEnv) || gh && (!exact3(value.gh, ["host", "account"]) || !text8(value.gh.host, 256) || !text8(value.gh.account, 100))) fail11("INVALID_CONNECTION");
   return { ...copy5(value), site: trackerOrigin(value.site) };
-}
-function githubApiBase(site) {
-  const origin = trackerOrigin(site), host = origin.slice(8);
-  if (host === "github.com") return "https://api.github.com";
-  if (/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.ghe\.com$/.test(host)) return "https://api." + host;
-  return origin + "/api/v3";
 }
 function githubProjectFieldsCursor({ owner, number }) {
   if (!name3(owner) || !Number.isInteger(number) || number < 1 || number > 2147483647) fail11("INVALID_REQUEST");
@@ -3159,6 +3161,14 @@ var GithubDataBridge = class {
     this.value = { state: "closed", view: this.viewKind, all: this.all, data: [], bindings: [], errors: [], loading: 0, truncated: false, limitReached: false };
   }
 };
+
+// src/shared/github-site.js
+function githubApiBase(site) {
+  const origin = trackerOrigin(site), host = origin.slice(8);
+  if (host === "github.com") return "https://api.github.com";
+  if (/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\.ghe\.com$/.test(host)) return "https://api." + host;
+  return origin + "/api/v3";
+}
 
 // src/mods/mission-control-github/pulls-view.js
 import { View, div as div4, list as list2 } from "gpui-kit";

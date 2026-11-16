@@ -31,7 +31,7 @@ export const COMMANDS=Object.freeze(['new','settings','sources','reopen-tab','re
 export const TIMING=Object.freeze({tickMs:1000,tickStaleMs:20000,pressMs:6000,closeMs:10000,reopenStaleMs:95000,requestMs:5000,namesMs:60000,wheelMs:160,commandMs:750,reopenReadMs:2000});
 export const STATUS=Object.freeze({working:'Working',blocked:'Needs input',done:'Done',idle:'Idle'});
 /** Every local artwork name this mod draws, its own views and the bundled agent menu alike. */
-export const ICONS=Object.freeze(['agent','branch','close','folder','github','gitlab','jira','layout','more','panel','pin','plus','priority','pull-request','refresh','search','sessions','settings','shortcut']);
+export const ICONS=Object.freeze(['agent','branch','close','folder','github','gitlab','jira','layout','more','panel','pin','plus','priority','pull-request','refresh','review','search','sessions','settings','shortcut']);
 const TOPBAR_WIDE=720,DIALOG_VIEWS=new Set(['menu','launch','settings']);
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const randomId=prefix=>prefix+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);

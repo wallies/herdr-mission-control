@@ -7,8 +7,8 @@
  *                  Mission Control view; without it the swap is disabled.
  *   mc-work-panel  Classic only: the side panel column [navigation block, mc-work-stack], hidden
  *                  at first. Its presence enables the panel toggle and the panel's hide button.
- *   mc-work-stack  a stack whose children are SOURCES ids (jira, github, pulls, gitlab, merges,
- *                  shortcut, sessions, control-panel), each a block with that source's `mod` and `props` below.
+ *   mc-work-stack  a stack whose children are SOURCES ids (jira, github, pulls, reviews, gitlab,
+ *                  merges, shortcut, sessions, control-panel), each a block with that source's `mod` and `props` below.
  *
  * Every action here takes its effects (run, shared, setShared) as arguments, so it holds no cx and
  * is testable without Herdr. The swap runs layout.switch only; selection and focus live in shared
@@ -34,6 +34,8 @@ export const SOURCES=freeze([
   {id:'jira',label:'Jira',short:'Jira',icon:'jira',mod:'mission-control-jira',props:{view:'panel',hideHeader:true},scopeKey:'mission-control-jira-ui-v1'},
   {id:'github',label:'GitHub issues',short:'GitHub',icon:'github',mod:'mission-control-github',props:{view:'issues',hideHeader:true},scopeKey:'mission-control-github-ui-v1'},
   {id:'pulls',label:'Pull requests',short:'PRs',icon:'pull-request',mod:'mission-control-github',props:{view:'pulls',hideHeader:true},scopeKey:'mission-control-github-prs-ui-v1'},
+  // Review requests come from every repository the gh account can see, never one space.
+  {id:'reviews',label:'Reviews',short:'Reviews',icon:'review',mod:'mission-control-reviews',props:{view:'panel',hideHeader:true},scopeKey:null,fixedScope:'all',caption:'All repositories'},
   {id:'gitlab',label:'GitLab issues',short:'GitLab',icon:'gitlab',mod:'mission-control-gitlab',props:{view:'issues',hideHeader:true},scopeKey:'mission-control-gitlab-ui-v1'},
   {id:'merges',label:'Merge requests',short:'MRs',icon:'branch',mod:'mission-control-gitlab',props:{view:'merges',hideHeader:true},scopeKey:'mission-control-gitlab-mrs-ui-v1'},
   {id:'shortcut',label:'Shortcut',short:'Shortcut',icon:'shortcut',mod:'mission-control-shortcut',props:{view:'panel',hideHeader:true},scopeKey:'mission-control-shortcut-ui-v1'},

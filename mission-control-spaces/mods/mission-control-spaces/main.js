@@ -1151,6 +1151,8 @@ var text5 = (v, name2, max = 256) => {
   if (typeof v !== "string" || !v || v.length > max || ["__proto__", "constructor", "prototype"].includes(v) || /[\u0000-\u001f]/.test(v)) fail7("INVALID_LAUNCH", `Invalid ${name2}`);
   return v;
 };
+var TASK_MAX = 4e3;
+var validTask = (v) => typeof v === "string" && v.length > 0 && v.length <= TASK_MAX && !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(v);
 var now = (io) => io.clock ? io.clock() : Date.now();
 var uuid2 = () => {
   const a = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
@@ -1177,7 +1179,7 @@ function validateLaunchRequest(value) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text5(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
     if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail7("INVALID_LAUNCH", "Source body exceeds the supported limit");
-    if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail7("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
+    if (r.source.task !== void 0 && !validTask(r.source.task)) fail7("INVALID_LAUNCH", `Source task must be at most ${TASK_MAX} characters, with new lines but no other control characters`);
   }
   r.options = validateToolOptions(Object.fromEntries(["model", "reasoning", "instructions", "skill", "subagents"].filter((k) => r[k] !== void 0).map((k) => [k, r[k]])));
   return r;

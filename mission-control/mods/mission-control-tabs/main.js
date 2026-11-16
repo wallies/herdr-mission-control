@@ -1074,6 +1074,8 @@ var text5 = (v, name2, max = 256) => {
   if (typeof v !== "string" || !v || v.length > max || ["__proto__", "constructor", "prototype"].includes(v) || /[\u0000-\u001f]/.test(v)) fail7("INVALID_LAUNCH", `Invalid ${name2}`);
   return v;
 };
+var TASK_MAX = 4e3;
+var validTask = (v) => typeof v === "string" && v.length > 0 && v.length <= TASK_MAX && !/[\u0000-\u0009\u000b-\u001f\u007f]/.test(v);
 var now = (io) => io.clock ? io.clock() : Date.now();
 var uuid2 = () => {
   const a = Array.from({ length: 16 }, () => Math.floor(Math.random() * 256));
@@ -1100,7 +1102,7 @@ function validateLaunchRequest(value) {
     for (const f of ["kind", "connectionId", "site", "id", "key", "title", "url"]) text5(r.source[f], `source ${f}`, f === "title" ? 512 : 2048);
     if (!["jira", "github", "github-pr", "gitlab", "gitlab-mr", "shortcut"].includes(r.source.kind) || !/^https:\/\/[^\s/@?#]+\/?$/.test(r.source.site) || !/^https:\/\/[^\s@]+$/.test(r.source.url)) fail7("INVALID_LAUNCH", "Invalid source identity/URL/site");
     if (r.source.body !== void 0 && (typeof r.source.body !== "string" || r.source.body.length > 64e3)) fail7("INVALID_LAUNCH", "Source body exceeds the supported limit");
-    if (r.source.task !== void 0 && (typeof r.source.task !== "string" || !r.source.task || r.source.task.length > 2048 || /[\u0000-\u001f\u007f]/.test(r.source.task))) fail7("INVALID_LAUNCH", "Source task must be one line of at most 2048 characters");
+    if (r.source.task !== void 0 && !validTask(r.source.task)) fail7("INVALID_LAUNCH", `Source task must be at most ${TASK_MAX} characters, with new lines but no other control characters`);
   }
   r.options = validateToolOptions(Object.fromEntries(["model", "reasoning", "instructions", "skill", "subagents"].filter((k) => r[k] !== void 0).map((k) => [k, r[k]])));
   return r;
@@ -5700,6 +5702,8 @@ var SOURCES2 = freeze8([
   { id: "jira", label: "Jira", short: "Jira", icon: "jira", mod: "mission-control-jira", props: { view: "panel", hideHeader: true }, scopeKey: "mission-control-jira-ui-v1" },
   { id: "github", label: "GitHub issues", short: "GitHub", icon: "github", mod: "mission-control-github", props: { view: "issues", hideHeader: true }, scopeKey: "mission-control-github-ui-v1" },
   { id: "pulls", label: "Pull requests", short: "PRs", icon: "pull-request", mod: "mission-control-github", props: { view: "pulls", hideHeader: true }, scopeKey: "mission-control-github-prs-ui-v1" },
+  // Review requests come from every repository the gh account can see, never one space.
+  { id: "reviews", label: "Reviews", short: "Reviews", icon: "review", mod: "mission-control-reviews", props: { view: "panel", hideHeader: true }, scopeKey: null, fixedScope: "all", caption: "All repositories" },
   { id: "gitlab", label: "GitLab issues", short: "GitLab", icon: "gitlab", mod: "mission-control-gitlab", props: { view: "issues", hideHeader: true }, scopeKey: "mission-control-gitlab-ui-v1" },
   { id: "merges", label: "Merge requests", short: "MRs", icon: "branch", mod: "mission-control-gitlab", props: { view: "merges", hideHeader: true }, scopeKey: "mission-control-gitlab-mrs-ui-v1" },
   { id: "shortcut", label: "Shortcut", short: "Shortcut", icon: "shortcut", mod: "mission-control-shortcut", props: { view: "panel", hideHeader: true }, scopeKey: "mission-control-shortcut-ui-v1" },
@@ -5933,7 +5937,7 @@ var VIEWS = Object.freeze(["topbar", "navigation", "menu", "launch", "settings",
 var COMMANDS = Object.freeze(["new", "settings", "sources", "reopen-tab", "reopen-agent", "swap", "panel", "rename", "automatic-name", "close", ...SOURCES2.map((s) => "source-" + s.id)]);
 var TIMING = Object.freeze({ tickMs: 1e3, tickStaleMs: 2e4, pressMs: 6e3, closeMs: 1e4, reopenStaleMs: 95e3, requestMs: 5e3, namesMs: 6e4, wheelMs: 160, commandMs: 750, reopenReadMs: 2e3 });
 var STATUS = Object.freeze({ working: "Working", blocked: "Needs input", done: "Done", idle: "Idle" });
-var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "search", "sessions", "settings", "shortcut"]);
+var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "review", "search", "sessions", "settings", "shortcut"]);
 var TOPBAR_WIDE = 720;
 var DIALOG_VIEWS = /* @__PURE__ */ new Set(["menu", "launch", "settings"]);
 var plain6 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);

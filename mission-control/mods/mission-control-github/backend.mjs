@@ -605,7 +605,7 @@ function validateSnapshot(value, expectedScope, { validateItem = validateIssue, 
   return result;
 }
 
-// src/mods/mission-control-github/auth.mjs
+// src/shared/github-auth.mjs
 import { spawn } from "node:child_process";
 var object4 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 var exact3 = (value, required, optional = []) => object4(value) && required.every((key) => Object.hasOwn(value, key)) && Object.keys(value).every((key) => required.includes(key) || optional.includes(key));

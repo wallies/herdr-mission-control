@@ -200,6 +200,17 @@
                       }
                     },
                     {
+                      "id": "reviews",
+                      "type": "block",
+                      "content": {
+                        "mod": "mission-control-reviews",
+                        "props": {
+                          "view": "panel",
+                          "hideHeader": true
+                        }
+                      }
+                    },
+                    {
                       "id": "gitlab",
                       "type": "block",
                       "content": {

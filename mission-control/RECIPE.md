@@ -1,6 +1,6 @@
 # Mission Control
 
-Two native Herdr layouts for running many repository spaces and coding agents across machines. **Mission Control** is the overview: Spaces and Agents in a left rail, eight separate work sources (Jira, GitHub issues, Pull requests, GitLab issues, Merge requests, Shortcut, Previous sessions, Control panel) in the main area and the active tab's terminals below them. **Classic** is terminal-first, with the same sources in a side panel that starts closed. Both share one topmost tab bar with automatic tab names, an agent menu, Reopen last tab / Reopen last agent and one button that swaps views without closing anything. The preview is the full overview frame from the isolated native layout gate, with synthetic spaces, agents and tracker data. Classic evidence is kept separately in the repository: `evidence/native/mission-control-classic.png` and the Classic assertions of `evidence/native/layout.json`.
+Two native Herdr layouts for running many repository spaces and coding agents across machines. **Mission Control** is the overview: Spaces and Agents in a left rail, nine separate work sources (Jira, GitHub issues, Pull requests, Reviews, GitLab issues, Merge requests, Shortcut, Previous sessions, Control panel) in the main area and the active tab's terminals below them. **Classic** is terminal-first, with the same sources in a side panel that starts closed. Both share one topmost tab bar with automatic tab names, an agent menu, Reopen last tab / Reopen last agent and one button that swaps views without closing anything. The preview is the full overview frame from the isolated native layout gate, with synthetic spaces, agents and tracker data. Classic evidence is kept separately in the repository: `evidence/native/mission-control-classic.png` and the Classic assertions of `evidence/native/layout.json`.
 
 ![Mission Control](preview.png)
 
@@ -15,10 +15,10 @@ Fixed graphite look: root `theme: "graphite"`, `titlebar: "none"`, `traffic_ligh
 
 **Mission Control (`layouts/mission-control.json`):** right of the rail, `mc-main` is a column split by a 1 px divider:
 
-- `mc-work` (weight 3, min 160): `mc-navigation`, a 34 px strip of eight source controls, directly above `mc-work-stack`, a header-less stack showing `jira` first. The strip reads Jira, GitHub issues, Pull requests, GitLab issues, Merge requests, Shortcut, Previous sessions, Control panel when it fits (the full labels need about 1011 px of strip, a 1280 px window), Jira, GitHub, PRs, GitLab, MRs, Shortcut, Sessions, Control panel when narrower (a 1024 px window), the same short labels with tighter padding when they fit, and icon-only controls with tooltips below that (a 736 px window). A dim caption shows `This space · <space>` or `All spaces` when room remains; the Control panel always covers the whole install, so its scope is fixed and its caption reads `All installed`. The selected control is the only heading; every embedded view runs with `hideHeader: true`.
+- `mc-work` (weight 3, min 160): `mc-navigation`, a 34 px strip of nine source controls, directly above `mc-work-stack`, a header-less stack showing `jira` first. The strip reads Jira, GitHub issues, Pull requests, Reviews, GitLab issues, Merge requests, Shortcut, Previous sessions, Control panel when it fits (the full labels need about 1102 px of strip, a 1322 px window), Jira, GitHub, PRs, Reviews, GitLab, MRs, Shortcut, Sessions, Control panel when narrower (a 1024 px window), the same short labels with tighter padding when they fit, and icon-only controls with tooltips below that (a 736 px window). A dim caption shows `This space · <space>` or `All spaces` when room remains; the Control panel always covers the whole install, so its scope is fixed and its caption reads `All installed`. The selected control is the only heading; every embedded view runs with `hideHeader: true`.
 - `mc-terminals` (weight 2, min 120, 8 px padding): the active tab's panes with 8 px gaps, 10 px radius, a 1 px border, an accent focus border and the shipped `pane` header (30 px, top, always shown).
 
-**Classic (`layouts/mission-control-classic.json`):** `mc-main` is a row with 8 px padding and 8 px gap. The terminals block comes first and takes the width; `mc-work-panel`, a 360 px column (min 280, max 900), sits to its right, `hidden: true` at start, holding the same navigation strip (plus a × Hide work panel button) and the same eight-source stack. With the panel closed the window is the rail plus terminals.
+**Classic (`layouts/mission-control-classic.json`):** `mc-main` is a row with 8 px padding and 8 px gap. The terminals block comes first and takes the width; `mc-work-panel`, a 360 px column (min 280, max 900), sits to its right, `hidden: true` at start, holding the same navigation strip (plus a × Hide work panel button) and the same nine-source stack. With the panel closed the window is the rail plus terminals.
 
 **Embedded sources (both layouts, same order and props):**
 
@@ -27,6 +27,7 @@ Fixed graphite look: root `theme: "graphite"`, `titlebar: "none"`, `traffic_ligh
 | `jira` | `mission-control-jira` | `{ "view": "panel", "hideHeader": true }` |
 | `github` | `mission-control-github` | `{ "view": "issues", "hideHeader": true }` |
 | `pulls` | `mission-control-github` | `{ "view": "pulls", "hideHeader": true }` |
+| `reviews` | `mission-control-reviews` | `{ "view": "panel", "hideHeader": true }` |
 | `gitlab` | `mission-control-gitlab` | `{ "view": "issues", "hideHeader": true }` |
 | `merges` | `mission-control-gitlab` | `{ "view": "merges", "hideHeader": true }` |
 | `shortcut` | `mission-control-shortcut` | `{ "view": "panel", "hideHeader": true }` |
@@ -35,7 +36,7 @@ Fixed graphite look: root `theme: "graphite"`, `titlebar: "none"`, `traffic_ligh
 
 Issue boards show compact To do / In progress / Done groups (Shortcut shows To do and In progress only, and loads only when Refresh is pressed) with linked keys and titles and up to three 25 px pinned tool buttons per card. Pull-request and merge-request lists show review, discussion and check/pipeline indicators with Review / Address comments / Fix checks actions; pull requests add Ship. Sessions lists previous agent sessions for the space with the tool's own icon, title, branch, host and age. The Control panel lists the installed mods and layouts with each repository's own preview image, shows which have a newer version on GitHub, updates them after a review, and disables, enables, uninstalls and restores them; built-in items are read-only. Mission Control layouts, bundled mods and the Control panel itself offer reviewed updates; disabling or removing installer-managed items and the panel stays protected. Agent rows show the actual tool icon beside the task name, then separate Context and Quota readings.
 
-Settings uses the authored previews `layouts/mission-control.svg` (overview with all eight source slots; Classic with its eight top-bar source buttons) and `layouts/mission-control-classic.svg`; they are artwork for Herdr's layout picker, not screenshots.
+Settings uses the authored previews `layouts/mission-control.svg` (overview with all nine source slots; Classic with its nine top-bar source buttons) and `layouts/mission-control-classic.svg`; they are artwork for Herdr's layout picker, not screenshots.
 
 ## How it behaves
 
@@ -61,6 +62,7 @@ mission-control/
   mods/mission-control-github/
   mods/mission-control-gitlab/
   mods/mission-control-jira/
+  mods/mission-control-reviews/
   mods/mission-control-sessions/
   mods/mission-control-shortcut/
   mods/mission-control-spaces/
@@ -73,7 +75,7 @@ mission-control/
 - `node scripts/project.mjs bundle` collects every `mission-control-*` mod the two layout trees reference, rebuilds each standalone package and copies its `mods/<name>/` byte for byte; `build-manifest.json` records the SHA-256 of every bundled file. Each mod folder carries its own `NOTICE.md`. These are the same mods as the standalone `mission-control-*` packages, each described by its own recipe.
 - `mission-control-agent-menu` and `mission-control-reopen` are not referenced: the tabs mod compiles in the same agent menu and its own Reopen controls. The optional `mission-control-accounts` mod is neither referenced nor required.
 - The only shipped Herdr mod used is the read-only `pane` header. No shipped tab strip (`tabs`, `terminals-bar`) or stack header is mounted, so there is exactly one tab strip.
-- Layout node contract read by `mission-control-tabs`: `mc-topbar` first; `mc-main` in both; `mc-work-stack` with exactly the eight children above; in Classic only, `mc-work-panel`, hidden at start, holding the navigation block and the stack. The tab bar's `swapTo` names the other layout (`mission-control` ↔ `mission-control-classic`); Classic adds `panel: true`.
+- Layout node contract read by `mission-control-tabs`: `mc-topbar` first; `mc-main` in both; `mc-work-stack` with exactly the nine children above; in Classic only, `mc-work-panel`, hidden at start, holding the navigation block and the stack. The tab bar's `swapTo` names the other layout (`mission-control` ↔ `mission-control-classic`); Classic adds `panel: true`.
 - Rail props: `mission-control-spaces` `{ "view": "list" }` and `{ "view": "footer" }`, `mission-control-agents` `{ "view": "list" }`. Tab bar props: `{ "view": "topbar", "swapTo": … }` and `{ "view": "navigation" }`.
 - Install with `node scripts/install.mjs --dry-run`, then `node scripts/install.mjs --app-home ~/.config/herdr-app --layout mission-control`. It refuses existing or shipped names, checks every mod with `herdr-app check`, switches layout and writes a rollback receipt.
 
@@ -92,10 +94,10 @@ mission-control/
 
 ## Done when
 
-- `node scripts/project.mjs bundle` produces exactly the tree above: both layout files, both Settings SVGs and exactly the eight referenced mods.
+- `node scripts/project.mjs bundle` produces exactly the tree above: both layout files, both Settings SVGs and exactly the ten referenced mods.
 - Every bundled mod is byte-identical to its standalone package build, and each of those packages passes its own native receipt, recipe and preview gate at current source hashes, `mission-control-gitlab` included, with the post-GitLab compatibility check passing.
-- Both layouts keep both GitLab roles and all eight navigation destinations, reachable with whole short labels at 1024 px and icon-only controls at 736 px beside a 220 px rail.
-- In one isolated native run of both layouts, the one-button swap keeps the selected space, tab, running terminal addresses and manual names; Jira, GitHub issues, Pull requests, GitLab issues, Merge requests, Previous sessions and the Control panel stay separate in both views; Classic starts with the panel closed.
+- Both layouts keep both GitLab roles and all nine navigation destinations, reachable with whole short labels at 1024 px and icon-only controls at 736 px beside a 220 px rail.
+- In one isolated native run of both layouts, the one-button swap keeps the selected space, tab, running terminal addresses and manual names; Jira, GitHub issues, Pull requests, Reviews, GitLab issues, Merge requests, Previous sessions and the Control panel stay separate in both views; Classic starts with the panel closed.
 - Pinned starts, right-click targets, context/quota, history, Reopen and tab naming work across 128 spaces and dozens of agents, with an offline second machine and duplicate issue IDs routed to the right space, account and checkout.
 - Every bundled mod passes `herdr-app check`, the run reports zero native app errors, `preview.png` equals the receipt's `layout-preview` frame, and the Classic frame is recorded separately.
 - `node --test tests/package-layout.test.mjs` passes.
