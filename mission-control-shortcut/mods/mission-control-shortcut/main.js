@@ -153,11 +153,11 @@ async function updateConfig(io, edit, { attempts = 4 } = {}) {
     if (next.revision !== snapshot.value.revision) throw new ConfigError("INVALID_EDIT", "Settings edits cannot replace the CAS revision.");
     if (next.revision === Number.MAX_SAFE_INTEGER) throw new ConfigError("REVISION_LIMIT", "Settings revision reached its supported limit; the original file has been preserved.");
     next.revision++;
-    const text8 = JSON.stringify(next, null, 2) + "\n";
-    if (text8.length > MAX_CONFIG_CHARACTERS) fail("Configuration exceeds the supported file size.");
+    const text9 = JSON.stringify(next, null, 2) + "\n";
+    if (text9.length > MAX_CONFIG_CHARACTERS) fail("Configuration exceeds the supported file size.");
     await io.ensureDirectory?.(snapshot.path.slice(0, snapshot.path.lastIndexOf("/")));
     try {
-      await io.writeTextFile(snapshot.path, text8, snapshot.raw);
+      await io.writeTextFile(snapshot.path, text9, snapshot.raw);
       return next;
     } catch (error2) {
       if (!conflict(error2)) throw error2;
@@ -1135,29 +1135,29 @@ var BindingStore = class {
   async propose({ requestId, originId, session = null }, { recoveryRecorded = [] } = {}) {
     text4(requestId, "request ID");
     text4(originId, "origin ID");
-    const exact3 = session ? sessionIdentity(session) : null;
+    const exact4 = session ? sessionIdentity(session) : null;
     return (await this.edit((d, now2) => {
       const old = d.proposals[requestId];
       if (old) {
-        if (old.originId !== originId || JSON.stringify(old.session) !== JSON.stringify(exact3)) fail7("BINDING_CONFLICT", "A request cannot change its origin or exact session");
+        if (old.originId !== originId || JSON.stringify(old.session) !== JSON.stringify(exact4)) fail7("BINDING_CONFLICT", "A request cannot change its origin or exact session");
         if (old.state === "invalidated" || ["proposed", "commit-pending"].includes(old.state) && old.expiresAt <= now2) fail7("RECOVERY_REQUIRED", "The interrupted request needs recovery; do not launch it again");
         return clone2(old);
       }
-      const record = { originId, session: exact3, state: "proposed", createdAt: now2, updatedAt: now2, invalidatedAt: null, expiresAt: now2 + 3e5 };
+      const record = { originId, session: exact4, state: "proposed", createdAt: now2, updatedAt: now2, invalidatedAt: null, expiresAt: now2 + 3e5 };
       d.proposals[requestId] = record;
       return clone2(record);
     }, { recoveryRecorded })).result;
   }
   async transition(requestId, ack, proof, { pending = false, session } = {}) {
     validateAck(ack);
-    const exact3 = session ? sessionIdentity(session) : null;
+    const exact4 = session ? sessionIdentity(session) : null;
     return (await this.edit((d, now2) => {
       const r = d.proposals[requestId];
       if (!r || r.state === "invalidated") fail7("RECOVERY_REQUIRED", "No active proposal exists for this acknowledged launch");
       if (r.state !== "committed" && r.expiresAt <= now2) fail7("RECOVERY_REQUIRED", "Acknowledged launch proposal expired; retain it for explicit recovery");
       if (now2 < r.updatedAt) fail7("INVALID_CLOCK", "The binding clock moved backwards");
-      const selected = r.session || exact3;
-      if (r.session && exact3 && sessionKey(r.session) !== sessionKey(exact3)) fail7("BINDING_CONFLICT", "A committed request cannot change provider sessions");
+      const selected = r.session || exact4;
+      if (r.session && exact4 && sessionKey(r.session) !== sessionKey(exact4)) fail7("BINDING_CONFLICT", "A committed request cannot change provider sessions");
       if (selected) validateProof(proof, selected, ack.terminal);
       if (r.ack && (r.ack.tabId !== ack.tabId || terminalKey(r.ack.terminal) !== terminalKey(ack.terminal))) fail7("BINDING_CONFLICT", "Acknowledgment belongs to a different tab/terminal generation");
       if (r.state === "committed" && r.session && selected && sessionKey(r.session) === sessionKey(selected)) return clone2(r);
@@ -1340,15 +1340,15 @@ var NameOwnership = class {
     text5(originId, "origin ID");
     tabKey({ machine: machine3, tabId });
     name(initialName);
-    const exact3 = session ? sessionIdentity(session) : null;
+    const exact4 = session ? sessionIdentity(session) : null;
     const { result } = await this.edit((d) => {
       const old = d.origins[originId];
-      if (exact3 && d.sessions[sessionKey(exact3)] && d.sessions[sessionKey(exact3)] !== originId) error("NAME_CONFLICT", "This exact session belongs to a different work origin");
-      if (old?.session && exact3 && sessionKey(old.session) !== sessionKey(exact3)) error("NAME_CONFLICT", "An origin cannot change its provider session");
+      if (exact4 && d.sessions[sessionKey(exact4)] && d.sessions[sessionKey(exact4)] !== originId) error("NAME_CONFLICT", "This exact session belongs to a different work origin");
+      if (old?.session && exact4 && sessionKey(old.session) !== sessionKey(exact4)) error("NAME_CONFLICT", "An origin cannot change its provider session");
       const owner = d.tabs[tabKey({ machine: machine3, tabId })];
       if (owner && owner !== originId) error("NAME_CONFLICT", "The acknowledged tab belongs to another work origin");
       const sameTab = old?.currentTab && tabKey(old.currentTab) === tabKey({ machine: machine3, tabId });
-      const record = { originId, ...old?.session || exact3 ? { session: old?.session || exact3 } : {}, currentTab: { machine: machineIdentity(machine3), tabId }, mode: old?.mode || "auto", manualName: old?.manualName ?? null, lastAutoName: sameTab ? old.lastAutoName : initialName, revision: (old?.revision ?? -1) + 1 };
+      const record = { originId, ...old?.session || exact4 ? { session: old?.session || exact4 } : {}, currentTab: { machine: machineIdentity(machine3), tabId }, mode: old?.mode || "auto", manualName: old?.manualName ?? null, lastAutoName: sameTab ? old.lastAutoName : initialName, revision: (old?.revision ?? -1) + 1 };
       d.origins[originId] = record;
       return clone3(record);
     });
@@ -1542,9 +1542,9 @@ var Journal = class {
   }
 };
 function captureRequest(r) {
-  const copy6 = clone4(r);
-  if (copy6.source) delete copy6.source.body;
-  return copy6;
+  const copy7 = clone4(r);
+  if (copy7.source) delete copy7.source.body;
+  return copy7;
 }
 function taskText(r) {
   if (!r.source) return void 0;
@@ -2207,7 +2207,17 @@ function card(props2, issue, choices, narrow) {
   const optionsEnabled = linkValid && typeof onOptions === "function" && !reason;
   const context = [issue.statusName, issue.identity.connectionId, issue.identity.site, issue.repoBinding.repoRoot, issue.repoBinding.machine || "This Mac"].join(" · ");
   const caption = all ? props2.bindingLabel?.(issue.repoBinding) || repoCaption(issue) : issue.statusName;
-  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid, props2.actionVerb))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 }))));
+  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid, props2.actionVerb))).when(Boolean(props2.cloud), (row) => row.child(cloudButton(props2, id2, issue, linkValid))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 })))).when(Boolean(props2.cloud), (el) => cloudFooter(el, props2, id2, issue));
+}
+function cloudButton(props2, id2, issue, linkValid) {
+  const cloud = props2.cloud, reason = cloud.reason?.(issue) || "", action = (props2.actionVerb || "Start") + " " + issue.key + " in a cloud session";
+  return iconButton(props2.mod, id2 + "-cloud", "cloud", reason || action, capturedAction(issue, (captured, cx) => cloud.onAsk(captured, cx), props2.onInvalid), { disabled: !linkValid || Boolean(reason), size: 25 });
+}
+function cloudFooter(el, props2, id2, issue) {
+  const t = colors(), cloud = props2.cloud, note = cloud.note?.(issue);
+  if (cloud.asking?.(issue)) el = el.child(v_flex3().id(id2 + "-cloud-confirm").gap(6).p(8).rounded(5).border(1).border_color(t.border).child(div3().text_size(11).text_color(t.muted).child("Start a cloud session for " + issue.key + "? It runs on claude.ai and uses your Claude plan.")).child(h_flex3().gap(6).items_center().child(div3().flex_1()).child(textButton(id2 + "-cloud-cancel", "Cancel", capturedAction(issue, (captured, cx) => cloud.onCancel(captured, cx), props2.onInvalid))).child(textButton(id2 + "-cloud-start", "Start", capturedAction(issue, (captured, cx) => cloud.onConfirm(captured, cx), props2.onInvalid), { primary: true }))));
+  if (note) el = el.child(div3().id(id2 + "-cloud-note").text_size(10).text_color(note.error ? t.blocked : t.muted).child(note.text));
+  return el;
 }
 function statusFilter(id2, title, count, active, action, { disabled = false } = {}) {
   const t = colors();
@@ -2270,11 +2280,232 @@ function renderIssueBoard(options, cx) {
   }).child(toolbar).child(filters).when(Boolean(errorBanner), (el) => el.child(errorBanner)).when(Boolean(setupBanner), (el) => el.child(setupBanner)).child(body).child(footer);
 }
 
-// src/mods/mission-control-shortcut/data.js
-var copy4 = (value) => JSON.parse(JSON.stringify(value));
+// src/shared/cloud-sessions.js
+var CloudSessionError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "CloudSessionError";
+    this.code = code;
+  }
+};
+var fail10 = (code, message) => {
+  throw new CloudSessionError(code, message);
+};
 var object4 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
-var exact2 = (v, required, optional = []) => object4(v) && required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
-var text7 = (v, max = 512) => typeof v === "string" && v.trim().length > 0 && v.length <= max && !/[\u0000-\u001f\u007f]/.test(v);
+var exact2 = (value, keys) => object4(value) && Object.keys(value).length === keys.length && keys.every((key3) => Object.hasOwn(value, key3));
+var text7 = (value, max) => typeof value === "string" && value.trim().length > 0 && value.length <= max && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+var copy4 = (value) => JSON.parse(JSON.stringify(value));
+var MAX_SESSIONS = 100;
+var CLOUD_EVENT = "mission-control-cloud-sessions-v1";
+var MAX_STORE_CHARACTERS = 2e5;
+var SESSION_SITE = "https://claude.ai/code/";
+var SESSION_ID = /^session_[A-Za-z0-9]{8,64}$/;
+var REPO_PART = /^[A-Za-z0-9_.-]{1,100}$/;
+var RECORD_KEYS = ["id", "url", "repo", "checkout", "title", "source", "createdAt", "pr", "checkedAt"];
+var PR_KEYS = ["number", "url", "state", "draft", "checks", "review"];
+var PR_STATES = ["open", "closed", "merged"];
+var CHECK_STATES = ["success", "failure", "pending"];
+var REVIEW_STATES = ["approved", "changesRequested", "reviewRequired"];
+var SOURCE_KINDS = ["shortcut", "pr"];
+function parseSessionRef(value) {
+  if (typeof value !== "string") fail10("INVALID_SESSION", "Enter a cloud session URL or ID.");
+  let ref = value.trim();
+  const link = ref.match(/^(?:https:\/\/)?claude\.ai\/code\/([^/?#\s]+)\/?(?:[?#]\S*)?$/);
+  if (link) ref = link[1];
+  if (ref.startsWith("cse_")) ref = "session_" + ref.slice(4);
+  if (!SESSION_ID.test(ref)) fail10("INVALID_SESSION", "Enter a cloud session URL (https://claude.ai/code/session_…) or its session ID.");
+  return { id: ref, url: SESSION_SITE + ref };
+}
+function githubRepo(value) {
+  const parts = typeof value === "string" ? value.trim().split("/") : [];
+  if (parts.length !== 2 || !parts.every((part) => REPO_PART.test(part) && part !== "." && part !== "..")) fail10("INVALID_REPO", "Enter the repository as owner/name, such as acme/botanic.");
+  return parts.join("/");
+}
+function repoFromRemote(url) {
+  if (typeof url !== "string") return null;
+  const match = url.trim().match(/^(?:https:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|(?:[^@/:]+@)?github\.com:)([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+  if (!match) return null;
+  try {
+    return githubRepo(match[1] + "/" + match[2]);
+  } catch {
+    return null;
+  }
+}
+function validatePull(value) {
+  if (!exact2(value, PR_KEYS)) fail10("INVALID_STORE", "A cloud session pull request is invalid.");
+  if (!Number.isSafeInteger(value.number) || value.number < 1 || typeof value.url !== "string" || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9][0-9]*$/.test(value.url) || !value.url.endsWith("/pull/" + value.number)) fail10("INVALID_STORE", "A cloud session pull request link is invalid.");
+  if (!PR_STATES.includes(value.state) || typeof value.draft !== "boolean" || value.checks !== null && !CHECK_STATES.includes(value.checks) || value.review !== null && !REVIEW_STATES.includes(value.review)) fail10("INVALID_STORE", "A cloud session pull request state is invalid.");
+}
+function validateRecord(value) {
+  if (!exact2(value, RECORD_KEYS)) fail10("INVALID_STORE", "A cloud session record has missing or unknown fields.");
+  const { id: id2, url } = parseSessionRef(typeof value.id === "string" ? value.id : "");
+  if (id2 !== value.id || url !== value.url) fail10("INVALID_STORE", "A cloud session record has a mismatched link.");
+  if (githubRepo(value.repo) !== value.repo) fail10("INVALID_STORE", "A cloud session repository is invalid.");
+  if (value.checkout !== null && (!text7(value.checkout, 4096) || !value.checkout.startsWith("/") || value.checkout.split("/").some((part) => part === "." || part === ".."))) fail10("INVALID_STORE", "A cloud session checkout must be an absolute folder.");
+  if (!text7(value.title, 200)) fail10("INVALID_STORE", "A cloud session title is invalid.");
+  if (value.source !== null && (!exact2(value.source, ["kind", "key"]) || !SOURCE_KINDS.includes(value.source.kind) || !text7(value.source.key, 200))) fail10("INVALID_STORE", "A cloud session source is invalid.");
+  if (!Number.isSafeInteger(value.createdAt) || value.createdAt < 0) fail10("INVALID_STORE", "A cloud session time is invalid.");
+  if (value.pr !== null) validatePull(value.pr);
+  if (value.checkedAt !== null && (!Number.isSafeInteger(value.checkedAt) || value.checkedAt < 0)) fail10("INVALID_STORE", "A cloud session check time is invalid.");
+  return copy4(value);
+}
+function validateStore(value) {
+  if (!exact2(value, ["v", "revision", "sessions"]) || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !Array.isArray(value.sessions)) fail10("INVALID_STORE", "The cloud session list is invalid; the original file was preserved.");
+  if (value.sessions.length > MAX_SESSIONS) fail10("STORE_FULL", `Mission Control follows at most ${MAX_SESSIONS} cloud sessions. Remove one first.`);
+  const seen = /* @__PURE__ */ new Set();
+  const sessions = value.sessions.map((record) => {
+    const checked = validateRecord(record);
+    if (seen.has(checked.id)) fail10("INVALID_STORE", "The cloud session list repeats a session.");
+    seen.add(checked.id);
+    return checked;
+  });
+  return { v: 1, revision: value.revision, sessions };
+}
+function newRecord({ ref, repo, checkout = null, title, source = null, createdAt }) {
+  const { id: id2, url } = parseSessionRef(ref);
+  const name2 = typeof title === "string" && title.trim() ? title.trim().slice(0, 200) : "Cloud session " + id2.slice(8, 16);
+  return validateRecord({ id: id2, url, repo: githubRepo(repo), checkout, title: name2, source, createdAt, pr: null, checkedAt: null });
+}
+function cloudStorePath(io) {
+  const app = typeof io.appHome === "function" ? io.appHome() : io.appHome;
+  if (typeof app !== "string" || !app.startsWith("/")) fail10("STORE_PATH", "The Herdr app home is unavailable.");
+  return app.replace(/\/+$/, "") + "/mission-control/cloud-sessions.json";
+}
+var conflict3 = (error2) => ["STALE", "CONFLICT", "EAGAIN"].includes(error2?.code) || /stale|snapshot|contents?.*changed|expected.*match|compare.and.set/i.test(error2?.message ?? "");
+var CloudSessionStore = class {
+  constructor(io) {
+    this.io = io;
+    this.path = cloudStorePath(io);
+  }
+  async snapshot() {
+    const raw = await this.io.readTextFile(this.path);
+    if (raw === null) return { raw, value: { v: 1, revision: 0, sessions: [] } };
+    if (typeof raw !== "string" || raw.length > MAX_STORE_CHARACTERS) fail10("INVALID_STORE", "The cloud session list exceeds its supported size; the original file was preserved.");
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      fail10("INVALID_STORE", "The cloud session list is not valid JSON; the original file was preserved.");
+    }
+    return { raw, value: validateStore(parsed) };
+  }
+  async list() {
+    return (await this.snapshot()).value.sessions;
+  }
+  /** `change` edits the session array in place and is rerun on a fresher copy after a conflict. */
+  async edit(change) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { raw, value } = await this.snapshot();
+      const draft = copy4(value);
+      change(draft.sessions);
+      draft.revision++;
+      const next = validateStore(draft), body = JSON.stringify(next, null, 2) + "\n";
+      if (body.length > MAX_STORE_CHARACTERS) fail10("STORE_FULL", "The cloud session list is full. Remove a session first.");
+      await this.io.ensureDirectory?.(this.path.slice(0, this.path.lastIndexOf("/")));
+      try {
+        await this.io.writeTextFile(this.path, body, raw);
+        return next.sessions;
+      } catch (error2) {
+        if (!conflict3(error2)) throw error2;
+      }
+    }
+    fail10("CONFLICT", "The cloud session list changed repeatedly. Try again.");
+  }
+  add(record) {
+    const checked = validateRecord(record);
+    return this.edit((sessions) => {
+      if (sessions.some((s) => s.id === checked.id)) fail10("DUPLICATE", "Mission Control already follows this cloud session.");
+      sessions.push(checked);
+    });
+  }
+  /** Forgets the record only; the cloud session itself is untouched. */
+  remove(id2) {
+    return this.edit((sessions) => {
+      const index2 = sessions.findIndex((s) => s.id === id2);
+      if (index2 >= 0) sessions.splice(index2, 1);
+    });
+  }
+  /** `found` maps a session id to its pull request (or null when none is found yet). */
+  recordPulls(found, checkedAt) {
+    return this.edit((sessions) => {
+      for (const session of sessions) {
+        if (!Object.hasOwn(found, session.id)) continue;
+        if (found[session.id] !== null) session.pr = copy4(found[session.id]);
+        session.checkedAt = checkedAt;
+      }
+    });
+  }
+};
+var STATUS_LABELS = Object.freeze({ started: "Started", draft: "Draft", checksRunning: "Checks running", checksFailing: "Checks failing", reviewRequested: "Review requested", changesRequested: "Changes requested", approved: "Approved", merged: "Merged", closed: "Closed" });
+var STATUS_COLORS = Object.freeze({ started: "working", draft: "idle", checksRunning: "working", checksFailing: "blocked", reviewRequested: "idle", changesRequested: "blocked", approved: "done", merged: "done", closed: "idle" });
+var createArgs = (task) => ["--cloud", task];
+function findSessionLink(screen) {
+  if (typeof screen !== "string") return null;
+  const match = screen.match(/https:\/\/claude\.ai\/code\/((?:session|cse)_[A-Za-z0-9]{8,64})/);
+  if (!match) return null;
+  try {
+    return parseSessionRef(match[1]);
+  } catch {
+    return null;
+  }
+}
+
+// src/shared/cloud-launch.js
+var fail11 = (code, message) => {
+  throw new CloudSessionError(code, message);
+};
+var WATCH_INTERVAL_MS = 3e3;
+var WATCH_ATTEMPTS = 60;
+function screenFailure(screen) {
+  if (/claude auth login|claude\.ai sign-in|organization UUID/i.test(screen)) return ["NOT_SIGNED_IN", "Claude Code is not signed in with a claude.ai account. Run claude auth login in a terminal, then try again."];
+  if (/(?:command not found|not found): claude|claude: (?:command )?not found/i.test(screen)) return ["CLAUDE_UNAVAILABLE", "Claude Code (the claude command) was not found in this space’s shell."];
+  if (/session creation failed|disabled by your organization/i.test(screen)) return ["CREATE_FAILED", "Claude Code could not create the cloud session. Its tab shows why."];
+  return null;
+}
+function acknowledged(result, spaceId) {
+  if (result?.code !== 0) fail11("TAB_FAILED", "Herdr did not open the cloud session tab.");
+  let ack;
+  try {
+    ack = JSON.parse(result.stdout);
+  } catch {
+    fail11("TAB_FAILED", "Herdr returned an invalid tab acknowledgment.");
+  }
+  if (ack?.space !== spaceId || typeof ack.terminal !== "string" || !/^[A-Za-z0-9_.:/-]{1,128}$/.test(ack.terminal)) fail11("TAB_FAILED", "Herdr returned an invalid tab acknowledgment.");
+  return ack;
+}
+async function watchForSession({ herdr: herdr2, terminal, sleep, attempts = WATCH_ATTEMPTS, isCurrent = () => true }) {
+  for (let attempt = 0; attempt < attempts; attempt++) {
+    await sleep(WATCH_INTERVAL_MS);
+    if (!isCurrent()) fail11("REQUEST_CANCELLED", "This launch was cancelled.");
+    const read = await herdr2.hc(["read", terminal, "--lines", "200"]);
+    if (read?.code !== 0) fail11("TAB_CLOSED", "The cloud session tab closed before it showed the session link.");
+    const found = findSessionLink(read.stdout);
+    if (found) return found;
+    const failure = screenFailure(read.stdout);
+    if (failure) fail11(...failure);
+  }
+  fail11("LINK_NOT_FOUND", "The cloud session tab did not show a session link within three minutes. Copy the link from that tab into Follow a cloud session in the Agents rail.");
+}
+async function startCloudSession({ herdr: herdr2, io, target, task, title, source, sleep, attempts, isCurrent = () => true }) {
+  if (target.machine !== null) fail11("LOCAL_ONLY", "Cloud sessions start from a checkout on this computer.");
+  const checkout = target.checkoutRoot, origin = await herdr2.exec("git", ["-C", checkout, "remote", "get-url", "origin"]);
+  const repo = origin.code === 0 ? repoFromRemote(origin.stdout) : null;
+  if (!repo) fail11("NOT_GITHUB", "Cloud sessions need a checkout whose origin is on github.com.");
+  if (!isCurrent()) fail11("REQUEST_CANCELLED", "This launch was cancelled.");
+  const args = { space: target.spaceId, folder: checkout, argv: ["claude", ...createArgs(task)], name: ("Cloud " + title).slice(0, 200) };
+  const ack = acknowledged(await herdr2.exec("herdr-app", ["do", "tab.new", JSON.stringify(args)]), target.spaceId);
+  const found = await watchForSession({ herdr: herdr2, terminal: ack.terminal, sleep, attempts, isCurrent });
+  const record = newRecord({ ref: found.id, repo, checkout, title, source, createdAt: Date.now() });
+  await new CloudSessionStore(io).add(record);
+  herdr2.setShared(CLOUD_EVENT, { v: 1, at: Date.now(), nonce: Math.random().toString(36).slice(2) });
+  return record;
+}
+
+// src/mods/mission-control-shortcut/data.js
+var copy5 = (value) => JSON.parse(JSON.stringify(value));
+var object5 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var exact3 = (v, required, optional = []) => object5(v) && required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
+var text8 = (v, max = 512) => typeof v === "string" && v.trim().length > 0 && v.length <= max && !/[\u0000-\u001f\u007f]/.test(v);
 var SHORTCUT_SITE2 = "https://app.shortcut.com";
 var messages2 = {
   INVALID_REQUEST: "Check the Shortcut connection and repository fields.",
@@ -2303,7 +2534,7 @@ var ShortcutDataError = class extends Error {
     this.code = safe;
   }
 };
-var fail10 = (code) => {
+var fail12 = (code) => {
   throw new ShortcutDataError(code);
 };
 var HELPER_TIMEOUT_MS = 15e4;
@@ -2313,7 +2544,7 @@ var MAX_STORED = 20;
 var safeError = (error2) => error2 instanceof ShortcutDataError ? error2 : new ShortcutDataError(Object.hasOwn(messages2, error2?.code) ? error2.code : error2?.code === "INVALID_BINDING" ? "INVALID_SCOPE" : ["INVALID_ISSUE", "INVALID_SNAPSHOT"].includes(error2?.code) ? "INVALID_RESPONSE" : ["INVALID_JSON", "UNSUPPORTED_VERSION", "CONFIG_PATH", "CONFIG_DIRECTORY"].includes(error2?.code) ? "INVALID_CONFIG" : "REQUEST_FAILED");
 function stable2(value) {
   if (Array.isArray(value)) return "[" + value.map(stable2).join(",") + "]";
-  if (object4(value)) return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable2(value[k])).join(",") + "}";
+  if (object5(value)) return "{" + Object.keys(value).sort().map((k) => JSON.stringify(k) + ":" + stable2(value[k])).join(",") + "}";
   return JSON.stringify(value);
 }
 var selectionKey = (desired) => desired?.all ? "all" : stable2([desired?.resolved?.state || "unbound", desired?.resolved?.machine ?? null, desired?.resolved?.repoRoot ?? null]);
@@ -2358,7 +2589,7 @@ var ShortcutDataBridge = class {
   }
   stored() {
     const value = this.store?.read();
-    return object4(value) && value.v === 1 && object4(value.entries) ? value.entries : {};
+    return object5(value) && value.v === 1 && object5(value.entries) ? value.entries : {};
   }
   /** Adopts a newer stored snapshot (from another copy or Set up); a read in flight here wins. */
   restore(entry) {
@@ -2407,7 +2638,7 @@ var ShortcutDataBridge = class {
     this.generation++;
     this.config = validateConfig(config);
     this.all = Boolean(all);
-    this.desired = { resolved: resolved ? copy4(resolved) : null, all: this.all };
+    this.desired = { resolved: resolved ? copy5(resolved) : null, all: this.all };
     this.schemaErrors = [];
     this.globalError = null;
     let selections = [];
@@ -2424,7 +2655,7 @@ var ShortcutDataBridge = class {
       }
     } else if (resolved?.state === void 0 || resolved.state === "resolved") {
       try {
-        if (resolved && !Object.hasOwn(resolved, "machine")) fail10("INVALID_SCOPE");
+        if (resolved && !Object.hasOwn(resolved, "machine")) fail12("INVALID_SCOPE");
         const selected = selectTracker(this.config, resolved, "shortcut");
         if (selected) selections = [selected];
       } catch (error2) {
@@ -2460,7 +2691,7 @@ var ShortcutDataBridge = class {
   }
   async synchronize(resolved, { all = false } = {}) {
     if (this.closed) return this.value;
-    const next = { resolved: resolved ? copy4(resolved) : null, all: Boolean(all) };
+    const next = { resolved: resolved ? copy5(resolved) : null, all: Boolean(all) };
     this.all = next.all;
     if (selectionKey(next) !== selectionKey(this.desired)) this.clearSelection();
     this.desired = next;
@@ -2478,52 +2709,52 @@ var ShortcutDataBridge = class {
     }
   }
   async request(input) {
-    if (this.closed) fail10("REQUEST_CANCELLED");
+    if (this.closed) fail12("REQUEST_CANCELLED");
     let serialized;
     try {
       serialized = JSON.stringify(input);
     } catch {
-      fail10("INVALID_REQUEST");
+      fail12("INVALID_REQUEST");
     }
-    if (utf8Bytes(serialized) > 65536) fail10("INVALID_REQUEST");
+    if (utf8Bytes(serialized) > 65536) fail12("INVALID_REQUEST");
     let result;
     try {
       const home = this.io.appHome();
       result = await this.io.exec("node", [home + "/mods/mission-control-shortcut/backend.mjs", serialized], { cwd: home, timeout: HELPER_TIMEOUT_MS });
     } catch {
-      fail10("HELPER_UNAVAILABLE");
+      fail12("HELPER_UNAVAILABLE");
     }
-    if (this.closed) fail10("REQUEST_CANCELLED");
-    if (result?.code !== 0) fail10("HELPER_UNAVAILABLE");
-    if (typeof result.stdout !== "string") fail10("INVALID_RESPONSE");
-    if (utf8Bytes(result.stdout) > 8 * 1024 * 1024) fail10("RESPONSE_TOO_LARGE");
+    if (this.closed) fail12("REQUEST_CANCELLED");
+    if (result?.code !== 0) fail12("HELPER_UNAVAILABLE");
+    if (typeof result.stdout !== "string") fail12("INVALID_RESPONSE");
+    if (utf8Bytes(result.stdout) > 8 * 1024 * 1024) fail12("RESPONSE_TOO_LARGE");
     let response;
     try {
       response = JSON.parse(result.stdout);
     } catch {
-      fail10("INVALID_RESPONSE");
+      fail12("INVALID_RESPONSE");
     }
-    if (!object4(response) || response.v !== 1 || typeof response.ok !== "boolean") fail10("INVALID_RESPONSE");
+    if (!object5(response) || response.v !== 1 || typeof response.ok !== "boolean") fail12("INVALID_RESPONSE");
     if (!response.ok) {
-      if (!exact2(response, ["v", "ok", "error"]) || !exact2(response.error, ["code", "message"], ["status", "retryAfterMs"]) || !text7(response.error.code, 80) || !text7(response.error.message, 512)) fail10("INVALID_RESPONSE");
+      if (!exact3(response, ["v", "ok", "error"]) || !exact3(response.error, ["code", "message"], ["status", "retryAfterMs"]) || !text8(response.error.code, 80) || !text8(response.error.message, 512)) fail12("INVALID_RESPONSE");
       throw new ShortcutDataError(response.error.code);
     }
-    if (response.operation !== input.operation) fail10("INVALID_RESPONSE");
+    if (response.operation !== input.operation) fail12("INVALID_RESPONSE");
     if (input.operation === "issues") {
-      if (!exact2(response, ["v", "ok", "operation", "snapshot"])) fail10("INVALID_RESPONSE");
+      if (!exact3(response, ["v", "ok", "operation", "snapshot"])) fail12("INVALID_RESPONSE");
       try {
         return validateSnapshot(response.snapshot, trackerScope("shortcut", input.connection, input.binding), { now: this.clock() });
       } catch {
-        fail10("INVALID_RESPONSE");
+        fail12("INVALID_RESPONSE");
       }
     }
-    if (!exact2(response, ["v", "ok", "operation", "connection", "probe"]) || !exact2(response.probe, ["site", "owner", "workspace"]) || response.probe.site !== SHORTCUT_SITE2 || stable2(response.connection) !== stable2(input.connection)) fail10("INVALID_RESPONSE");
+    if (!exact3(response, ["v", "ok", "operation", "connection", "probe"]) || !exact3(response.probe, ["site", "owner", "workspace"]) || response.probe.site !== SHORTCUT_SITE2 || stable2(response.connection) !== stable2(input.connection)) fail12("INVALID_RESPONSE");
     try {
       validateRepoBinding({ machine: null, repoRoot: "/", shortcut: { connectionId: input.connection.id, owner: response.probe.owner, workspace: response.probe.workspace } });
     } catch {
-      fail10("INVALID_RESPONSE");
+      fail12("INVALID_RESPONSE");
     }
-    return copy4(response.probe);
+    return copy5(response.probe);
   }
   // A load the host ended mid-flight never settles; drop its ticket without starting another paid run.
   abandonedLoad(entry) {
@@ -2544,7 +2775,7 @@ var ShortcutDataBridge = class {
   }
   refreshEntry(entry) {
     if (entry.pending) return entry.pending;
-    const selection2 = copy4(entry.selection);
+    const selection2 = copy5(entry.selection);
     const ticket = entry.cache.begin(selection2.scope);
     if (!ticket) return Promise.resolve(entry.cache.snapshot);
     const run = async () => {
@@ -2592,20 +2823,20 @@ var ShortcutDataBridge = class {
   }
   async saveSetup({ target, connection, probe, query = "" }, { isCurrent = () => true } = {}) {
     const selection2 = { owner: probe.owner, workspace: probe.workspace, ...query.trim() ? { query: query.trim() } : {} };
-    const binding = validateRepoBinding({ machine: target.machine, repoRoot: target.repoRoot, shortcut: { ...selection2, connectionId: connection.id } }), profile = { ...copy4(connection), site: trackerOrigin(connection.site) }, epoch = ++this.setupEpoch;
+    const binding = validateRepoBinding({ machine: target.machine, repoRoot: target.repoRoot, shortcut: { ...selection2, connectionId: connection.id } }), profile = { ...copy5(connection), site: trackerOrigin(connection.site) }, epoch = ++this.setupEpoch;
     validateConfig({ v: 1, connections: { [profile.id]: profile }, bindings: { [bindingKey(binding.machine, binding.repoRoot)]: binding } });
     const current = () => !this.closed && epoch === this.setupEpoch && isCurrent();
-    if (!current()) fail10("REQUEST_CANCELLED");
+    if (!current()) fail12("REQUEST_CANCELLED");
     const io = { ...this.io, readTextFile: async (...args) => {
       const value = await this.io.readTextFile(...args);
-      if (!current()) fail10("REQUEST_CANCELLED");
+      if (!current()) fail12("REQUEST_CANCELLED");
       return value;
     }, writeTextFile: (...args) => {
-      if (!current()) fail10("REQUEST_CANCELLED");
+      if (!current()) fail12("REQUEST_CANCELLED");
       return this.io.writeTextFile(...args);
     } };
     const config = await saveRepoIntegration(io, { machine: binding.machine, repoRoot: binding.repoRoot, source: "shortcut", connection: profile, selection: binding.shortcut });
-    if (!current()) fail10("REQUEST_CANCELLED");
+    if (!current()) fail12("REQUEST_CANCELLED");
     if (this.desired) this.selectConfig(config, this.desired.resolved, { all: this.desired.all });
     else this.config = config;
     return { config, binding };
@@ -2631,9 +2862,9 @@ var CONFIG_EVENT = "mission-control-shortcut-config-v1";
 var DATA_EVENT = "mission-control-shortcut-data-v1";
 var COLUMNS = ["todo", "inProgress"];
 var UI_STATES = ["all", ...COLUMNS];
-var copy5 = (value) => JSON.parse(JSON.stringify(value));
+var copy6 = (value) => JSON.parse(JSON.stringify(value));
 var machineKey = (machine3) => JSON.stringify(machine3);
-var fail11 = (code, message) => {
+var fail13 = (code, message) => {
   throw Object.assign(Error(message), { code });
 };
 var sameRepo = (a, b) => a?.machine === b?.machine && a?.repoRoot === b?.repoRoot;
@@ -2645,17 +2876,17 @@ var snapshotStore = { read: () => herdr.shared(SNAPSHOT_STATE), write: (value) =
 var shipTask = (key3) => `Use the ship-tickets skill to ship ${key3}.`;
 function shortcutLaunchSource(value) {
   const issue = validateIssue(value);
-  if (issue.identity.kind !== "shortcut") fail11("INVALID_SCOPE", "Select a Shortcut story.");
+  if (issue.identity.kind !== "shortcut") fail13("INVALID_SCOPE", "Select a Shortcut story.");
   return { kind: "shortcut", connectionId: issue.identity.connectionId, site: issue.identity.site, id: issue.identity.id, key: issue.key, title: issue.title, url: issue.url, task: shipTask(issue.key) };
 }
 async function captureRepository(binding, { all = false, resolved, originPane, isCurrent = () => true, api = herdr } = {}) {
-  const world = copy5(api.spaces()), focus2 = api.focused(), panes2 = api.panes().map((p) => ({ ...p, focused: p.focused || p.pane === focus2?.pane }));
+  const world = copy6(api.spaces()), focus2 = api.focused(), panes2 = api.panes().map((p) => ({ ...p, focused: p.focused || p.pane === focus2?.pane }));
   const machine3 = api.machines().find((m) => m.name === binding.machine);
-  if (!machine3 || machine3.layout !== "ready") fail11("HOST_UNAVAILABLE", "The story’s execution machine is offline or still connecting.");
+  if (!machine3 || machine3.layout !== "ready") fail13("HOST_UNAVAILABLE", "The story’s execution machine is offline or still connecting.");
   const exec2 = async (...args) => {
-    if (!isCurrent()) fail11("REQUEST_CANCELLED", "This launch was cancelled.");
+    if (!isCurrent()) fail13("REQUEST_CANCELLED", "This launch was cancelled.");
     const result = await api.exec(...args);
-    if (!isCurrent()) fail11("REQUEST_CANCELLED", "This launch was cancelled.");
+    if (!isCurrent()) fail13("REQUEST_CANCELLED", "This launch was cancelled.");
     return result;
   };
   const check = async (space, { singlePane } = {}) => {
@@ -2669,9 +2900,9 @@ async function captureRepository(binding, { all = false, resolved, originPane, i
   };
   let selected;
   if (!all) {
-    if (resolved?.state !== "resolved" || !sameRepo(resolved, binding)) fail11("INVALID_SCOPE", "The clicked story is no longer bound to this repository. Reload the space.");
+    if (resolved?.state !== "resolved" || !sameRepo(resolved, binding)) fail13("INVALID_SCOPE", "The clicked story is no longer bound to this repository. Reload the space.");
     const space = world.find((s) => s.id === resolved.spaceId && s.machine === binding.machine);
-    if (!space) fail11("SPACE_UNAVAILABLE", "The clicked story’s repository space is unavailable.");
+    if (!space) fail13("SPACE_UNAVAILABLE", "The clicked story’s repository space is unavailable.");
     const liveFocus = panes2.find((p) => p.terminal && p.focused && (space.tabs || []).some((t) => t.id === p.tab));
     selected = await check(space, { singlePane: liveFocus?.pane || originPane || resolved.paneId });
   } else {
@@ -2680,8 +2911,8 @@ async function captureRepository(binding, { all = false, resolved, originPane, i
       if (selected) break;
     }
   }
-  if (!isCurrent()) fail11("REQUEST_CANCELLED", "This launch was cancelled.");
-  if (!selected) fail11("REPO_UNAVAILABLE", "Open or focus a terminal in this story’s repository before starting work.");
+  if (!isCurrent()) fail13("REQUEST_CANCELLED", "This launch was cancelled.");
+  if (!selected) fail13("REPO_UNAVAILABLE", "Open or focus a terminal in this story’s repository before starting work.");
   return selected;
 }
 async function captureShortcutTarget(value, options = {}) {
@@ -2702,6 +2933,9 @@ var MissionControlShortcut = class extends View {
     this.toolTimes = /* @__PURE__ */ new Map();
     this.toolPending = /* @__PURE__ */ new Set();
     this.launching = /* @__PURE__ */ new Set();
+    this.cloudLaunching = /* @__PURE__ */ new Set();
+    this.cloudNotes = /* @__PURE__ */ new Map();
+    this.cloudAsking = null;
     this.contextEpoch = 0;
     this.formEpoch = 0;
     this.seq = 0;
@@ -2774,7 +3008,7 @@ var MissionControlShortcut = class extends View {
       if (pane) this.originPanes.set(space2.id, pane.pane);
     }
     const wanted = this.props.target?.spaceId || this.props.spaceId || focused2?.space, expected = this.props.target && Object.hasOwn(this.props.target, "machine") ? this.props.target.machine : Object.hasOwn(this.props, "machine") ? this.props.machine : void 0, space = spaces2.find((s) => s.id === wanted && (expected === void 0 || s.machine === expected));
-    return { spaces: copy5(spaces2), space: space ? copy5(space) : null, panes: panes2 };
+    return { spaces: copy6(spaces2), space: space ? copy6(space) : null, panes: panes2 };
   }
   saveUI() {
     if (this.board) herdr.setShared(STATE, { v: 1, all: this.all, ...this.board.filters() });
@@ -2832,9 +3066,9 @@ var MissionControlShortcut = class extends View {
       } else if (!this.all && space) {
         const chosen = origin ? eligible.filter((p) => p.pane === origin) : eligible;
         resolved = await resolveSpaceRepo(space, chosen, async (...args) => {
-          if (this.closed || epoch !== this.contextEpoch) fail11("REQUEST_CANCELLED", "Repository selection changed.");
+          if (this.closed || epoch !== this.contextEpoch) fail13("REQUEST_CANCELLED", "Repository selection changed.");
           const result = await herdr.exec(...args);
-          if (this.closed || epoch !== this.contextEpoch) fail11("REQUEST_CANCELLED", "Repository selection changed.");
+          if (this.closed || epoch !== this.contextEpoch) fail13("REQUEST_CANCELLED", "Repository selection changed.");
           return result;
         });
       }
@@ -2873,7 +3107,7 @@ var MissionControlShortcut = class extends View {
     if (this.launching.has(key3)) return;
     this.launching.add(key3);
     this.error = null;
-    const all = this.all, resolved = this.resolved ? copy5(this.resolved) : null, originPane = resolved ? this.originPanes.get(resolved.spaceId) : null;
+    const all = this.all, resolved = this.resolved ? copy6(this.resolved) : null, originPane = resolved ? this.originPanes.get(resolved.spaceId) : null;
     cx.notify();
     return this.spawn(cx, async () => {
       try {
@@ -2889,6 +3123,50 @@ var MissionControlShortcut = class extends View {
       }
     });
   }
+  cloudReason(issue) {
+    if (this.cloudLaunching.has(issueIdentityKey(issue))) return "Starting a cloud session…";
+    if (issue.repoBinding.machine !== null) return "Cloud sessions start from a checkout on this computer.";
+    return this.launchReason(issue);
+  }
+  askCloud(issue, cx) {
+    this.cloudAsking = issueIdentityKey(issue);
+    this.cloudNotes.delete(this.cloudAsking);
+    cx.notify();
+  }
+  cancelCloud(_issue, cx) {
+    this.cloudAsking = null;
+    cx.notify();
+  }
+  /** Confirmed on the card: opens a tab running `claude --cloud <ship task>`, then records the session. */
+  startCloud(value, cx) {
+    let issue;
+    try {
+      issue = validateIssue(value);
+      shortcutLaunchSource(issue);
+    } catch {
+      this.error = "This story is unavailable. Refresh Shortcut.";
+      cx.notify();
+      return;
+    }
+    const key3 = issueIdentityKey(issue);
+    this.cloudAsking = null;
+    if (this.cloudLaunching.has(key3)) return;
+    this.cloudLaunching.add(key3);
+    this.cloudNotes.set(key3, { text: "Starting a cloud session in a new tab…" });
+    const all = this.all, resolved = this.resolved ? copy6(this.resolved) : null, originPane = resolved ? this.originPanes.get(resolved.spaceId) : null;
+    cx.notify();
+    return this.spawn(cx, async (taskCx) => {
+      try {
+        const captured = await captureShortcutTarget(issue, { all, resolved, originPane, isCurrent: () => !this.closed });
+        await startCloudSession({ herdr, io: this.io, target: captured.target, task: shipTask(issue.key), title: issue.key + " " + issue.title, source: { kind: "shortcut", key: issue.key }, sleep: (ms) => taskCx.sleep(ms), isCurrent: () => !this.closed });
+        this.cloudNotes.set(key3, { text: "Cloud session started. Follow it in the Agents rail." });
+      } catch (error2) {
+        if (!this.closed) this.cloudNotes.set(key3, { text: error2?.code ? error2.message : "The cloud session could not start.", error: true });
+      } finally {
+        this.cloudLaunching.delete(key3);
+      }
+    });
+  }
   openIssue(value, cx) {
     let issue;
     try {
@@ -2901,7 +3179,7 @@ var MissionControlShortcut = class extends View {
     }
     return this.spawn(cx, async () => {
       const platform = herdr.window().platform, command = platform === "macos" ? "open" : platform === "windows" ? "explorer.exe" : "xdg-open", result = await herdr.exec(command, [issue.url]);
-      if (result.code !== 0) fail11("OPEN_FAILED", "The browser could not open this story.");
+      if (result.code !== 0) fail13("OPEN_FAILED", "The browser could not open this story.");
     });
   }
   openSetup(binding, cx) {
@@ -2915,9 +3193,9 @@ var MissionControlShortcut = class extends View {
   openShortcuts(cx) {
     const captured = this.world();
     return this.spawn(cx, async () => {
-      if (!captured.space) fail11("SPACE_UNAVAILABLE", "Select a repository space first.");
+      if (!captured.space) fail13("SPACE_UNAVAILABLE", "Select a repository space first.");
       const origin = this.originPanes.get(captured.space.id), panes2 = origin ? captured.panes.filter((p) => p.pane === origin) : captured.panes, resolved = await resolveSpaceRepo(captured.space, panes2, herdr.exec);
-      if (resolved.state !== "resolved") fail11("REPO_UNAVAILABLE", resolved.reason);
+      if (resolved.state !== "resolved") fail13("REPO_UNAVAILABLE", resolved.reason);
       const target = launchTarget(resolved);
       if (!this.closed) openLaunchDialog(MOD, herdr, { view: "settings", target, ...target });
     });
@@ -2988,7 +3266,7 @@ var MissionControlShortcut = class extends View {
   }
   checkSetup(cx) {
     if (this.checking || !this.setupTarget) return;
-    const epoch = this.formEpoch, target = copy5(this.setupTarget), connection = this.connection();
+    const epoch = this.formEpoch, target = copy6(this.setupTarget), connection = this.connection();
     this.checking = true;
     this.error = null;
     cx.notify();
@@ -3006,7 +3284,7 @@ var MissionControlShortcut = class extends View {
   /** Saves the probed binding, then loads its stories once so the board has cards. */
   saveSetup(cx) {
     if (this.saving || !this.setupTarget || !this.probe) return;
-    const epoch = this.formEpoch, target = copy5(this.setupTarget), connection = this.connection(), probe = copy5(this.probe), query = this.query.value();
+    const epoch = this.formEpoch, target = copy6(this.setupTarget), connection = this.connection(), probe = copy6(this.probe), query = this.query.value();
     this.saving = true;
     this.error = null;
     cx.notify();
@@ -3066,7 +3344,7 @@ var MissionControlShortcut = class extends View {
     const t = colors(), root = v_flex4().id("shortcut-panel").size_full().min_h(0).bg(t.surface);
     if (!this.props.hideHeader) root.child(this.header("Shortcut"));
     if (this.error) root.child(div4().id("shortcut-action-error").px(12).py(7).text_size(11).text_color(t.blocked).child(this.error));
-    return root.child(renderIssueBoard({ id: "shortcut-board", mod: MOD, state: this.board, view: this.data.view(), columns: COLUMNS, manualRefresh: true, actionVerb: "Ship", preferences: this.config?.preferences.launch || {}, toolsForMachine: (machine3) => this.tools.get(machineKey(machine3)) || [], launchReason: (issue) => this.launchReason(issue), onOpenIssue: (issue, eventCx) => this.openIssue(issue, eventCx), onLaunch: (issue, key3, eventCx) => this.startIssue(issue, key3, eventCx), onOptions: (issue, eventCx) => this.startIssue(issue, void 0, eventCx, { options: true }), onRefresh: (_value, eventCx) => this.refresh(eventCx), onSetup: (binding, eventCx) => this.openSetup(binding, eventCx), onScopeChange: (all, eventCx) => this.setScope(all, eventCx), onInvalid: (message, eventCx) => {
+    return root.child(renderIssueBoard({ id: "shortcut-board", mod: MOD, state: this.board, view: this.data.view(), columns: COLUMNS, manualRefresh: true, actionVerb: "Ship", preferences: this.config?.preferences.launch || {}, toolsForMachine: (machine3) => this.tools.get(machineKey(machine3)) || [], launchReason: (issue) => this.launchReason(issue), onOpenIssue: (issue, eventCx) => this.openIssue(issue, eventCx), onLaunch: (issue, key3, eventCx) => this.startIssue(issue, key3, eventCx), onOptions: (issue, eventCx) => this.startIssue(issue, void 0, eventCx, { options: true }), cloud: { reason: (issue) => this.cloudReason(issue), asking: (issue) => this.cloudAsking === issueIdentityKey(issue), note: (issue) => this.cloudNotes.get(issueIdentityKey(issue)), onAsk: (issue, eventCx) => this.askCloud(issue, eventCx), onCancel: (issue, eventCx) => this.cancelCloud(issue, eventCx), onConfirm: (issue, eventCx) => this.startCloud(issue, eventCx) }, onRefresh: (_value, eventCx) => this.refresh(eventCx), onSetup: (binding, eventCx) => this.openSetup(binding, eventCx), onScopeChange: (all, eventCx) => this.setScope(all, eventCx), onInvalid: (message, eventCx) => {
       this.error = message;
       eventCx.notify();
     } }, cx));

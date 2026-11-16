@@ -16,7 +16,7 @@
     "NOTICE.md": "8c4171f1674a94038e7435af3225b75f65dadc6f59783e9da0234d08fa71542e"
   },
   "sources": {
-    "src/assets/icons.json": "36892381fd91e665a92096473806bf56f55d6f4e86227ab586987be7e10d9bb8",
+    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
     "src/mods/mission-control-reviews/backend.mjs": "1d3c3942ef6efae716d9a92cd6fff4e42bcd1b37bc91a618e8324f3885eb63a0",
     "src/mods/mission-control-reviews/checkout.js": "0561a367421402eeb7ccae61b24a47d3c9040b0ab4ae8f952a55c6c699335634",
     "src/mods/mission-control-reviews/data.js": "39d616f8920e4e99ac01c43fc48e5f02b81dce9a4d72890912fe6b4c230bb438",

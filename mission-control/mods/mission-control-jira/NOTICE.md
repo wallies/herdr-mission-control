@@ -108,6 +108,18 @@ review: Original Mission Control artwork; MIT
 
 ---
 
+cloud: Original Mission Control artwork; MIT
+
+---
+
+message: Original Mission Control artwork; MIT
+
+---
+
+teleport: Original Mission Control artwork; MIT
+
+---
+
 zod@4.6.7 (MIT)
 MIT License
 

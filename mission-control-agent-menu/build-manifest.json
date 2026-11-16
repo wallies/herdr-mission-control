@@ -8,6 +8,7 @@
     "assets/chevron-down.svg": "1d2065b24da0cf4b3936203004eb8ef7b15a985a0658426517ad0113c29d0fc8",
     "assets/chevron-right.svg": "efc8ab93d789d1e04bbd5c062e1560267280b570d6efaa09d2a77e601d64ee5f",
     "assets/close.svg": "28e7ce6d33be8f07dedad8e80ee59e816b81a0e845f64613e3bb51c357da925b",
+    "assets/cloud.svg": "f04cbc5676f7574e21852cb122ce6c724ec589a8566e68cd464f480f5f05f8d6",
     "assets/external.svg": "e4c8ed502be1e53c147361f58d8776337ab259794054e8f3d1e8fd29722d3195",
     "assets/folder.svg": "3a46023f1ff23f2112b9e0955ad32690139e8f1c071ccfdbcae8e85295365f66",
     "assets/github.svg": "b4ababc5c6d3ed662798989f5e1a3c4b819767438997b1e1ca020542b77337bf",
@@ -15,6 +16,7 @@
     "assets/issue.svg": "3d676661dab61f8b1611d3dc6d5c33ec4c311d40e40f755332c8d9f4d5118315",
     "assets/jira.svg": "2e3db07f926b1f7a2467c0769c23627e8c887f83231e6c46c96ac349e4e0d3a3",
     "assets/layout.svg": "991e3e3ef8165e8c057236ee43ab157a22d12479251bd3da3710db3837326cfd",
+    "assets/message.svg": "d9417778fd059497f37a7ff7119593d7fe30240de34eb94f9b9aa52d6e3b7308",
     "assets/more.svg": "a82bebdebdd8c147ef583c00b87788c4a196e04fce2a5e4a10f0ccbc432fdbe4",
     "assets/panel.svg": "9c88b7e44f25d82d3f37d069b69167c98a06cf4a6cb7f9da7dc52cc2ca10c187",
     "assets/pin.svg": "2211c66b64ec8a722b08abf49deac42bba57ec7ca21c72dbf270d28a9b6cb9e6",
@@ -29,12 +31,13 @@
     "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
+    "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
     "main.js": "741d78592268690bce91b76472311efa061c2dfef9325c1f662bc14f2e315a52",
     "mod.json": "b9dc2364b8bd1a9f91d9387516fbd9bb108064d8fb3af734b4b5042266493a56",
-    "NOTICE.md": "854bb36885972311215d02bd6a1fba5b8c34767f8e39325f70897b3901146352"
+    "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
   },
   "sources": {
-    "src/assets/icons.json": "36892381fd91e665a92096473806bf56f55d6f4e86227ab586987be7e10d9bb8",
+    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
     "src/mods/mission-control-agent-menu/main.js": "a015aa335f43bd39b78800f134fa5010316d2ad0a792bc9156b9fa1a047d6a12",
     "src/mods/mission-control-agent-menu/mod.json": "577e100ca81956783494435794e18cbabaabf4d2daa926a9c4f9c38a5f1f61eb",
     "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",

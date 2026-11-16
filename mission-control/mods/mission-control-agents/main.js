@@ -1,6 +1,6 @@
 // src/mods/mission-control-agents/main.js
-import { View, div as div2 } from "gpui-kit";
-import { v_flex as v_flex2, h_flex as h_flex2, InputState as InputState2, Input as Input2 } from "gpui-base";
+import { View, div as div3 } from "gpui-kit";
+import { v_flex as v_flex3, h_flex as h_flex3, InputState as InputState3, Input as Input3 } from "gpui-base";
 import * as herdr2 from "herdr";
 
 // src/shared/config.js
@@ -153,11 +153,11 @@ async function updateConfig(io, edit2, { attempts = 4 } = {}) {
     if (next.revision !== snapshot.value.revision) throw new ConfigError("INVALID_EDIT", "Settings edits cannot replace the CAS revision.");
     if (next.revision === Number.MAX_SAFE_INTEGER) throw new ConfigError("REVISION_LIMIT", "Settings revision reached its supported limit; the original file has been preserved.");
     next.revision++;
-    const text6 = JSON.stringify(next, null, 2) + "\n";
-    if (text6.length > MAX_CONFIG_CHARACTERS) fail("Configuration exceeds the supported file size.");
+    const text7 = JSON.stringify(next, null, 2) + "\n";
+    if (text7.length > MAX_CONFIG_CHARACTERS) fail("Configuration exceeds the supported file size.");
     await io.ensureDirectory?.(snapshot.path.slice(0, snapshot.path.lastIndexOf("/")));
     try {
-      await io.writeTextFile(snapshot.path, text6, snapshot.raw);
+      await io.writeTextFile(snapshot.path, text7, snapshot.raw);
       return next;
     } catch (error2) {
       if (!conflict(error2)) throw error2;
@@ -321,16 +321,551 @@ function buildAgentModel({ agents: agents2 = [], terminals: terminals2 = [], spa
   return { groups, rows, navigation, count: native.size, visibleCount: rows.length };
 }
 
+// src/mods/mission-control-agents/cloud-rail.js
+import { div as div2 } from "gpui-kit";
+import { v_flex as v_flex2, h_flex as h_flex2, InputState as InputState2, Input as Input2 } from "gpui-base";
+
+// src/shared/cloud-sessions.js
+var CloudSessionError = class extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = "CloudSessionError";
+    this.code = code;
+  }
+};
+var fail3 = (code, message) => {
+  throw new CloudSessionError(code, message);
+};
+var object2 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var exact = (value, keys2) => object2(value) && Object.keys(value).length === keys2.length && keys2.every((key2) => Object.hasOwn(value, key2));
+var text2 = (value, max) => typeof value === "string" && value.trim().length > 0 && value.length <= max && !/[\u0000-\u001f\u007f-\u009f]/.test(value);
+var copy2 = (value) => JSON.parse(JSON.stringify(value));
+var MAX_SESSIONS = 100;
+var CLOUD_EVENT = "mission-control-cloud-sessions-v1";
+var MAX_STORE_CHARACTERS = 2e5;
+var SESSION_SITE = "https://claude.ai/code/";
+var SESSION_ID = /^session_[A-Za-z0-9]{8,64}$/;
+var REPO_PART = /^[A-Za-z0-9_.-]{1,100}$/;
+var RECORD_KEYS = ["id", "url", "repo", "checkout", "title", "source", "createdAt", "pr", "checkedAt"];
+var PR_KEYS = ["number", "url", "state", "draft", "checks", "review"];
+var PR_STATES = ["open", "closed", "merged"];
+var CHECK_STATES = ["success", "failure", "pending"];
+var REVIEW_STATES = ["approved", "changesRequested", "reviewRequired"];
+var SOURCE_KINDS = ["shortcut", "pr"];
+function parseSessionRef(value) {
+  if (typeof value !== "string") fail3("INVALID_SESSION", "Enter a cloud session URL or ID.");
+  let ref = value.trim();
+  const link = ref.match(/^(?:https:\/\/)?claude\.ai\/code\/([^/?#\s]+)\/?(?:[?#]\S*)?$/);
+  if (link) ref = link[1];
+  if (ref.startsWith("cse_")) ref = "session_" + ref.slice(4);
+  if (!SESSION_ID.test(ref)) fail3("INVALID_SESSION", "Enter a cloud session URL (https://claude.ai/code/session_…) or its session ID.");
+  return { id: ref, url: SESSION_SITE + ref };
+}
+function githubRepo(value) {
+  const parts = typeof value === "string" ? value.trim().split("/") : [];
+  if (parts.length !== 2 || !parts.every((part) => REPO_PART.test(part) && part !== "." && part !== "..")) fail3("INVALID_REPO", "Enter the repository as owner/name, such as acme/botanic.");
+  return parts.join("/");
+}
+function repoFromRemote(url) {
+  if (typeof url !== "string") return null;
+  const match = url.trim().match(/^(?:https:\/\/(?:[^@/]+@)?github\.com\/|ssh:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|(?:[^@/:]+@)?github\.com:)([^/]+)\/([^/]+?)(?:\.git)?\/?$/i);
+  if (!match) return null;
+  try {
+    return githubRepo(match[1] + "/" + match[2]);
+  } catch {
+    return null;
+  }
+}
+function validatePull(value) {
+  if (!exact(value, PR_KEYS)) fail3("INVALID_STORE", "A cloud session pull request is invalid.");
+  if (!Number.isSafeInteger(value.number) || value.number < 1 || typeof value.url !== "string" || !/^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/pull\/[1-9][0-9]*$/.test(value.url) || !value.url.endsWith("/pull/" + value.number)) fail3("INVALID_STORE", "A cloud session pull request link is invalid.");
+  if (!PR_STATES.includes(value.state) || typeof value.draft !== "boolean" || value.checks !== null && !CHECK_STATES.includes(value.checks) || value.review !== null && !REVIEW_STATES.includes(value.review)) fail3("INVALID_STORE", "A cloud session pull request state is invalid.");
+}
+function validateRecord(value) {
+  if (!exact(value, RECORD_KEYS)) fail3("INVALID_STORE", "A cloud session record has missing or unknown fields.");
+  const { id, url } = parseSessionRef(typeof value.id === "string" ? value.id : "");
+  if (id !== value.id || url !== value.url) fail3("INVALID_STORE", "A cloud session record has a mismatched link.");
+  if (githubRepo(value.repo) !== value.repo) fail3("INVALID_STORE", "A cloud session repository is invalid.");
+  if (value.checkout !== null && (!text2(value.checkout, 4096) || !value.checkout.startsWith("/") || value.checkout.split("/").some((part) => part === "." || part === ".."))) fail3("INVALID_STORE", "A cloud session checkout must be an absolute folder.");
+  if (!text2(value.title, 200)) fail3("INVALID_STORE", "A cloud session title is invalid.");
+  if (value.source !== null && (!exact(value.source, ["kind", "key"]) || !SOURCE_KINDS.includes(value.source.kind) || !text2(value.source.key, 200))) fail3("INVALID_STORE", "A cloud session source is invalid.");
+  if (!Number.isSafeInteger(value.createdAt) || value.createdAt < 0) fail3("INVALID_STORE", "A cloud session time is invalid.");
+  if (value.pr !== null) validatePull(value.pr);
+  if (value.checkedAt !== null && (!Number.isSafeInteger(value.checkedAt) || value.checkedAt < 0)) fail3("INVALID_STORE", "A cloud session check time is invalid.");
+  return copy2(value);
+}
+function validateStore(value) {
+  if (!exact(value, ["v", "revision", "sessions"]) || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !Array.isArray(value.sessions)) fail3("INVALID_STORE", "The cloud session list is invalid; the original file was preserved.");
+  if (value.sessions.length > MAX_SESSIONS) fail3("STORE_FULL", `Mission Control follows at most ${MAX_SESSIONS} cloud sessions. Remove one first.`);
+  const seen = /* @__PURE__ */ new Set();
+  const sessions = value.sessions.map((record) => {
+    const checked = validateRecord(record);
+    if (seen.has(checked.id)) fail3("INVALID_STORE", "The cloud session list repeats a session.");
+    seen.add(checked.id);
+    return checked;
+  });
+  return { v: 1, revision: value.revision, sessions };
+}
+function newRecord({ ref, repo, checkout = null, title, source = null, createdAt }) {
+  const { id, url } = parseSessionRef(ref);
+  const name2 = typeof title === "string" && title.trim() ? title.trim().slice(0, 200) : "Cloud session " + id.slice(8, 16);
+  return validateRecord({ id, url, repo: githubRepo(repo), checkout, title: name2, source, createdAt, pr: null, checkedAt: null });
+}
+function cloudStorePath(io) {
+  const app = typeof io.appHome === "function" ? io.appHome() : io.appHome;
+  if (typeof app !== "string" || !app.startsWith("/")) fail3("STORE_PATH", "The Herdr app home is unavailable.");
+  return app.replace(/\/+$/, "") + "/mission-control/cloud-sessions.json";
+}
+var conflict2 = (error2) => ["STALE", "CONFLICT", "EAGAIN"].includes(error2?.code) || /stale|snapshot|contents?.*changed|expected.*match|compare.and.set/i.test(error2?.message ?? "");
+var CloudSessionStore = class {
+  constructor(io) {
+    this.io = io;
+    this.path = cloudStorePath(io);
+  }
+  async snapshot() {
+    const raw = await this.io.readTextFile(this.path);
+    if (raw === null) return { raw, value: { v: 1, revision: 0, sessions: [] } };
+    if (typeof raw !== "string" || raw.length > MAX_STORE_CHARACTERS) fail3("INVALID_STORE", "The cloud session list exceeds its supported size; the original file was preserved.");
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch {
+      fail3("INVALID_STORE", "The cloud session list is not valid JSON; the original file was preserved.");
+    }
+    return { raw, value: validateStore(parsed) };
+  }
+  async list() {
+    return (await this.snapshot()).value.sessions;
+  }
+  /** `change` edits the session array in place and is rerun on a fresher copy after a conflict. */
+  async edit(change) {
+    for (let attempt = 0; attempt < 4; attempt++) {
+      const { raw, value } = await this.snapshot();
+      const draft = copy2(value);
+      change(draft.sessions);
+      draft.revision++;
+      const next = validateStore(draft), body = JSON.stringify(next, null, 2) + "\n";
+      if (body.length > MAX_STORE_CHARACTERS) fail3("STORE_FULL", "The cloud session list is full. Remove a session first.");
+      await this.io.ensureDirectory?.(this.path.slice(0, this.path.lastIndexOf("/")));
+      try {
+        await this.io.writeTextFile(this.path, body, raw);
+        return next.sessions;
+      } catch (error2) {
+        if (!conflict2(error2)) throw error2;
+      }
+    }
+    fail3("CONFLICT", "The cloud session list changed repeatedly. Try again.");
+  }
+  add(record) {
+    const checked = validateRecord(record);
+    return this.edit((sessions) => {
+      if (sessions.some((s) => s.id === checked.id)) fail3("DUPLICATE", "Mission Control already follows this cloud session.");
+      sessions.push(checked);
+    });
+  }
+  /** Forgets the record only; the cloud session itself is untouched. */
+  remove(id) {
+    return this.edit((sessions) => {
+      const index2 = sessions.findIndex((s) => s.id === id);
+      if (index2 >= 0) sessions.splice(index2, 1);
+    });
+  }
+  /** `found` maps a session id to its pull request (or null when none is found yet). */
+  recordPulls(found2, checkedAt) {
+    return this.edit((sessions) => {
+      for (const session2 of sessions) {
+        if (!Object.hasOwn(found2, session2.id)) continue;
+        if (found2[session2.id] !== null) session2.pr = copy2(found2[session2.id]);
+        session2.checkedAt = checkedAt;
+      }
+    });
+  }
+};
+function cloudStatus(record) {
+  const pr = record.pr;
+  if (!pr) return "started";
+  if (pr.state === "merged") return "merged";
+  if (pr.state === "closed") return "closed";
+  if (pr.draft) return "draft";
+  if (pr.checks === "failure") return "checksFailing";
+  if (pr.checks === "pending") return "checksRunning";
+  if (pr.review === "changesRequested") return "changesRequested";
+  if (pr.review === "approved") return "approved";
+  return "reviewRequested";
+}
+var STATUS_LABELS = Object.freeze({ started: "Started", draft: "Draft", checksRunning: "Checks running", checksFailing: "Checks failing", reviewRequested: "Review requested", changesRequested: "Changes requested", approved: "Approved", merged: "Merged", closed: "Closed" });
+var STATUS_COLORS = Object.freeze({ started: "working", draft: "idle", checksRunning: "working", checksFailing: "blocked", reviewRequested: "idle", changesRequested: "blocked", approved: "done", merged: "done", closed: "idle" });
+var teleportArgs = (id) => ["--teleport", id];
+var MESSAGE_MAX = 4e3;
+function validMessage(value) {
+  const message = typeof value === "string" ? value.trim() : "";
+  if (!message) fail3("INVALID_MESSAGE", "Type a message first.");
+  if (message.length > MESSAGE_MAX) fail3("INVALID_MESSAGE", `Messages are capped at ${MESSAGE_MAX} characters.`);
+  if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(message)) fail3("INVALID_MESSAGE", "Messages can use new lines, but no tabs or other control characters.");
+  return message;
+}
+
+// src/shared/ui.js
+import { div, svg, image } from "gpui-kit";
+import { h_flex, v_flex, Input, InputState } from "gpui-base";
+import { theme } from "herdr";
+var palette = { chrome: "#101114", surface: "#17191d", border: "#2a2d33", foreground: "#e5e7eb", muted: "#91969f", dim: "#6b7079", accent: "#89b4fa", selected: "#253044" };
+var colors = () => ({ ...palette, ...theme() });
+var key = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
+function asset(mod, name2) {
+  if (!key.test(mod) || !key.test(name2)) throw Error("Invalid local artwork identity");
+  return `mods/${mod}/assets/${name2}.svg`;
+}
+var icon = (mod, name2, size = 15) => svg(asset(mod, name2)).size(size).flex_none();
+function safeArtworkPath(value) {
+  return typeof value === "string" && /^(icons|mods)\/[A-Za-z0-9_./-]+$/.test(value) && !value.split("/").some((v) => v === "." || v === "..") && !value.includes("//") ? value : null;
+}
+function toolIcon(mod, program, size = 16) {
+  const path = safeArtworkPath(program?.icon);
+  const el = path ? program.tint ? svg(path) : image(path) : icon(mod, "agent", size);
+  return div().id("tool-icon-" + (program?.key || "agent")).size(size).flex_none().text_color(program?.color || colors().muted).tooltip(program?.name || "Agent").accessibility_label(program?.name || "Agent").child(el.size(size).flex_none());
+}
+function iconButton(mod, id, name2, label2, action, { active = false, disabled = false, size = 28 } = {}) {
+  const t = colors();
+  let el = div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(5).text_color(disabled ? t.dim : active ? t.accent : t.muted).bg(active ? t.selected : "#00000000").tooltip(label2).accessibility_label(label2).role("button").on_mouse_down("left", (_e, cx) => cx.stop_propagation());
+  if (!disabled) el = el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((e, cx) => {
+    cx.stop_propagation();
+    return action(e, cx);
+  });
+  return el.child(icon(mod, name2, 15));
+}
+function textButton(id, label2, action, { primary = false, disabled = false } = {}) {
+  const t = colors();
+  let el = h_flex().id(id).h(30).px(10).gap(6).items_center().justify_center().rounded(5).text_size(12).bg(primary ? t.selected : t.surface).border(1).border_color(t.border).text_color(disabled ? t.dim : primary ? t.accent : t.foreground).accessibility_label(label2).role("button");
+  if (!disabled) el = el.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(action);
+  return el.child(label2);
+}
+var label = (value, { muted = false, size = 12 } = {}) => div().text_size(size).text_color(muted ? colors().muted : colors().foreground).truncate().child(value);
+function statusDot(status, size = 5) {
+  const t = colors();
+  return div().size(size).rounded_full().flex_none().bg(t[status] || t.dim).tooltip(status || "Unknown");
+}
+function sectionHeader(mod, id, title, count, { collapsed = false, toggle, actions = [] } = {}) {
+  return h_flex().h(32).gap(4).px(8).items_center().child(iconButton(mod, id + "-toggle", collapsed ? "chevron-right" : "chevron-down", `${collapsed ? "Expand" : "Collapse"} ${title}`, toggle)).child(label(title, { muted: true, size: 11 })).child(label(String(count ?? ""), { muted: true, size: 10 })).child(div().flex_1()).children(actions);
+}
+function createSearch(placeholder, onChange) {
+  const state2 = InputState.new({ placeholder });
+  state2.on("change", (_e, cx) => {
+    onChange(state2.value(), cx);
+    cx.notify();
+  });
+  return state2;
+}
+function searchInput(mod, id, state2) {
+  const t = colors();
+  return h_flex().id(id).h(30).gap(6).px(8).rounded(5).border(1).border_color(t.border).bg(t.chrome).items_center().child(icon(mod, "search", 13).text_color(t.dim)).child(Input.new(state2).flex_1().text_size(12).text_color(t.foreground));
+}
+
+// src/mods/mission-control-agents/cloud-data.js
+var PULLS_REFRESH_MS = 5 * 6e4;
+var PULLS_BATCH = 20;
+var STALE_MS = 9e4;
+var object3 = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
+var fail4 = (code, message) => {
+  throw new CloudSessionError(code, message);
+};
+function reviewsConnection(config) {
+  const id = config?.preferences?.reviews?.connectionId, c = typeof id === "string" ? config.connections?.[id] : null;
+  return c?.kind === "github" && c.gh ? c : null;
+}
+function validateCloudReply(value, input) {
+  if (!object3(value) || value.v !== 1 || typeof value.ok !== "boolean") fail4("INVALID_RESPONSE", "The cloud helper returned an invalid reply.");
+  if (!value.ok) {
+    const e = value.error;
+    if (!object3(e) || typeof e.code !== "string" || typeof e.message !== "string" || e.message.length > 512) fail4("INVALID_RESPONSE", "The cloud helper returned an invalid reply.");
+    fail4(e.code, e.message);
+  }
+  if (value.operation !== input.operation) fail4("INVALID_RESPONSE", "The cloud helper answered another request.");
+  if (input.operation === "message") {
+    if (value.session !== input.session) fail4("INVALID_RESPONSE", "The cloud helper answered for another session.");
+    return { session: value.session };
+  }
+  if (!Number.isSafeInteger(value.checkedAt) || !object3(value.found)) fail4("INVALID_RESPONSE", "The cloud helper returned an invalid lookup.");
+  const asked = new Set(input.sessions.map((s) => s.id)), found2 = {};
+  for (const [id, pr] of Object.entries(value.found)) {
+    if (!asked.has(id)) fail4("INVALID_RESPONSE", "The cloud helper returned a session it was not asked about.");
+    if (pr !== null) {
+      try {
+        validatePull(pr);
+      } catch {
+        fail4("INVALID_RESPONSE", "The cloud helper returned an invalid pull request.");
+      }
+    }
+    found2[id] = pr;
+  }
+  return { checkedAt: value.checkedAt, found: found2 };
+}
+var CloudSessions = class {
+  constructor(io, { clock = () => Date.now() } = {}) {
+    Object.assign(this, { io, clock, store: new CloudSessionStore(io), records: [], error: null, pullsError: null, connection: null, pending: null, pendingAt: 0, closed: false });
+  }
+  async load() {
+    try {
+      this.records = await this.store.list();
+      this.error = null;
+    } catch (error2) {
+      this.error = error2.message || "The cloud session list could not be read.";
+    }
+    try {
+      this.connection = reviewsConnection((await readConfig(this.io)).value);
+    } catch {
+      this.connection = null;
+    }
+    return this.records;
+  }
+  async request(input) {
+    let result;
+    try {
+      const home = this.io.appHome();
+      result = await this.io.exec("node", [home + "/mods/mission-control-agents/backend.mjs", JSON.stringify(input)], { cwd: home, timeout: 9e4 });
+    } catch {
+      fail4("HELPER_UNAVAILABLE", "The local cloud helper could not run. Check that Node.js 22 or later is installed.");
+    }
+    if (this.closed) fail4("REQUEST_CANCELLED", "This request was cancelled.");
+    if (result?.code !== 0 || typeof result.stdout !== "string") fail4("HELPER_UNAVAILABLE", "The local cloud helper could not run. Check that Node.js 22 or later is installed.");
+    let reply;
+    try {
+      reply = JSON.parse(result.stdout);
+    } catch {
+      fail4("INVALID_RESPONSE", "The cloud helper returned an invalid reply.");
+    }
+    return validateCloudReply(reply, input);
+  }
+  /** Queues one message into the session; Claude Code does not wait for the reply. */
+  message(id, text7) {
+    const session2 = parseSessionRef(id).id, message = validMessage(text7);
+    return this.request({ v: 1, operation: "message", session: session2, message });
+  }
+  /** True when no lookup is running and the last one started at least `ageMs` ago. */
+  due(ageMs = PULLS_REFRESH_MS) {
+    if (this.pending && this.clock() - this.pendingAt < STALE_MS) return false;
+    return this.pendingAt === 0 || this.clock() - this.pendingAt >= ageMs;
+  }
+  /** Merged sessions are final; the rest are checked least recently checked first, a batch at a time. */
+  candidates() {
+    return this.records.filter((r) => cloudStatus(r) !== "merged").sort((a, b) => (a.checkedAt ?? -1) - (b.checkedAt ?? -1)).slice(0, PULLS_BATCH);
+  }
+  refreshPulls() {
+    if (this.closed) return Promise.resolve(this.records);
+    if (this.pending && this.clock() - this.pendingAt < STALE_MS) return this.pending;
+    const pending = (async () => {
+      try {
+        const wanted = this.candidates();
+        if (!this.connection || !wanted.length) return this.records;
+        const reply = await this.request({ v: 1, operation: "pulls", connection: this.connection, sessions: wanted.map((r) => ({ id: r.id, repo: r.repo })) });
+        if (this.closed) return this.records;
+        this.records = await this.store.recordPulls(reply.found, reply.checkedAt);
+        this.pullsError = null;
+      } catch (error2) {
+        if (!this.closed) this.pullsError = error2.message || "Pull requests could not be checked.";
+      } finally {
+        if (this.pending === pending) this.pending = null;
+      }
+      return this.records;
+    })();
+    this.pending = pending;
+    this.pendingAt = this.clock();
+    return pending;
+  }
+  async remove(id) {
+    this.records = await this.store.remove(id);
+    return this.records;
+  }
+  async add(record) {
+    this.records = await this.store.add(record);
+    return this.records;
+  }
+  close() {
+    this.closed = true;
+    this.pending = null;
+  }
+};
+
+// src/mods/mission-control-agents/cloud-rail.js
+var MOD = "mission-control-agents";
+var rowId = (id) => "cloud-" + id;
+var opener = (platform) => platform === "macos" ? "open" : platform === "windows" ? "explorer.exe" : "xdg-open";
+var CloudRail = class {
+  constructor(herdr3, { spawn, clock = () => Date.now() }) {
+    Object.assign(this, { herdr: herdr3, spawn, data: new CloudSessions(createConfigIO(herdr3), { clock }), adding: false, addError: null, boxes: /* @__PURE__ */ new Map(), notes: /* @__PURE__ */ new Map(), busy: /* @__PURE__ */ new Set(), seen: null });
+    this.ref = InputState2.new({ placeholder: "https://claude.ai/code/session_…" });
+    this.repo = InputState2.new({ placeholder: "owner/name" });
+  }
+  records() {
+    return this.data.records;
+  }
+  /** Reloads when another copy (or the Shortcut board) changed the list. */
+  sync(cx) {
+    const revision = JSON.stringify(this.herdr.shared(CLOUD_EVENT) ?? null);
+    if (revision === this.seen) return;
+    this.seen = revision;
+    return this.spawn(cx, async () => {
+      await this.data.load();
+      if (this.data.due()) await this.data.refreshPulls();
+    });
+  }
+  changed() {
+    this.herdr.setShared(CLOUD_EVENT, { v: 1, at: Date.now(), nonce: Math.random().toString(36).slice(2) });
+    this.seen = JSON.stringify(this.herdr.shared(CLOUD_EVENT));
+  }
+  /** Called by the rail's timer while it is expanded. */
+  tick(cx) {
+    if (this.data.records.length && this.data.connection && this.data.due()) return this.spawn(cx, async () => {
+      await this.data.refreshPulls();
+    });
+  }
+  note(id, text7, { error: error2 = false } = {}) {
+    this.notes.set(id, { text: text7, error: error2 });
+  }
+  open(record, cx) {
+    return this.spawn(cx, async () => {
+      const result = await this.herdr.exec(opener(this.herdr.window().platform), [record.url]);
+      if (result.code !== 0) this.note(record.id, "The browser could not open this session.", { error: true });
+    });
+  }
+  toggleMessage(record, cx) {
+    if (this.boxes.has(record.id)) {
+      this.boxes.get(record.id).release();
+      this.boxes.delete(record.id);
+    } else this.boxes.set(record.id, InputState2.new({ placeholder: "Message for the cloud session" }));
+    cx.notify();
+  }
+  send(record, cx) {
+    const box = this.boxes.get(record.id);
+    if (!box || this.busy.has(record.id)) return;
+    let text7;
+    try {
+      text7 = validMessage(box.value());
+    } catch (error2) {
+      this.note(record.id, error2.message, { error: true });
+      cx.notify();
+      return;
+    }
+    this.busy.add(record.id);
+    this.note(record.id, "Sending…");
+    cx.notify();
+    return this.spawn(cx, async () => {
+      try {
+        await this.data.message(record.id, text7);
+        this.note(record.id, "Message sent.");
+        box.set_value("");
+      } catch (error2) {
+        this.note(record.id, error2.message || "The message could not be sent.", { error: true });
+      } finally {
+        this.busy.delete(record.id);
+      }
+    });
+  }
+  /** A new tab in the current space, in the recorded checkout, running `claude --teleport <id>`. */
+  teleport(record, cx) {
+    const space = this.herdr.spaces().find((s) => s.id === this.herdr.focused()?.space);
+    if (!record.checkout) this.note(record.id, "No local checkout is recorded for this session.", { error: true });
+    else if (!space || space.machine !== null) this.note(record.id, "Select a space on this computer to teleport into.", { error: true });
+    else {
+      this.herdr.run("tab.new", { space: space.id, folder: record.checkout, argv: ["claude", ...teleportArgs(record.id)], name: ("Teleport " + record.title).slice(0, 200) });
+      this.note(record.id, "Teleporting in a new tab.");
+    }
+    cx.notify();
+  }
+  remove(record, cx) {
+    return this.spawn(cx, async () => {
+      try {
+        await this.data.remove(record.id);
+        this.boxes.get(record.id)?.release();
+        this.boxes.delete(record.id);
+        this.notes.delete(record.id);
+        this.changed();
+      } catch (error2) {
+        this.note(record.id, error2.message, { error: true });
+      }
+    });
+  }
+  toggleAdd(cx) {
+    this.adding = !this.adding;
+    this.addError = null;
+    cx.notify();
+  }
+  /** The focused local terminal's checkout when its origin is this repository, else null. */
+  async checkoutFor(repo) {
+    const focus = this.herdr.focused(), pane = this.herdr.panes().find((p) => p.pane === focus?.pane), space = this.herdr.spaces().find((s) => s.id === focus?.space);
+    if (!pane?.cwd || !space || space.machine !== null) return null;
+    const top = await this.herdr.exec("git", ["-C", pane.cwd, "rev-parse", "--show-toplevel"]);
+    if (top.code !== 0) return null;
+    const root = top.stdout.trim(), origin = await this.herdr.exec("git", ["-C", root, "remote", "get-url", "origin"]);
+    return origin.code === 0 && repoFromRemote(origin.stdout)?.toLowerCase() === repo.toLowerCase() && root.startsWith("/") ? root : null;
+  }
+  add(cx) {
+    let ref, repo;
+    try {
+      ref = parseSessionRef(this.ref.value());
+      repo = githubRepo(this.repo.value());
+    } catch (error2) {
+      this.addError = error2.message;
+      cx.notify();
+      return;
+    }
+    if (this.busy.has("add")) return;
+    this.busy.add("add");
+    this.addError = null;
+    cx.notify();
+    return this.spawn(cx, async () => {
+      try {
+        const checkout = await this.checkoutFor(repo);
+        await this.data.add(newRecord({ ref: ref.id, repo, checkout, title: repo + " cloud session", createdAt: Date.now() }));
+        this.changed();
+        this.ref.set_value("");
+        this.repo.set_value("");
+        this.adding = false;
+      } catch (error2) {
+        this.addError = error2.message || "The session could not be added.";
+      } finally {
+        this.busy.delete("add");
+      }
+    });
+  }
+  addForm() {
+    const t = colors(), field = (id, state2) => Input2.new(state2).id(id).h(28).px(7).bg(t.surface).border(1).border_color(t.border).rounded(5).text_size(11).text_color(t.foreground);
+    return v_flex2().id("cloud-add").mx(4).p(8).gap(6).rounded(5).border(1).border_color(t.border).child(label("Follow a cloud session", { muted: true, size: 10 })).child(field("cloud-add-ref", this.ref)).child(field("cloud-add-repo", this.repo)).when(Boolean(this.addError), (e) => e.child(div2().id("cloud-add-error").text_size(10).text_color(t.blocked).child(this.addError))).child(h_flex2().gap(6).child(div2().flex_1()).child(textButton("cloud-add-cancel", "Cancel", (_e, cx) => this.toggleAdd(cx))).child(textButton("cloud-add-save", this.busy.has("add") ? "Adding…" : "Add", (_e, cx) => this.add(cx), { primary: true, disabled: this.busy.has("add") })));
+  }
+  row(record) {
+    const t = colors(), id = rowId(record.id), status = cloudStatus(record), box = this.boxes.get(record.id), note = this.notes.get(record.id), checked = record.checkedAt ? " · checked " + new Date(record.checkedAt).toISOString().slice(0, 16).replace("T", " ") + " UTC" : "";
+    const tip = record.title + " · " + record.repo + " · " + STATUS_LABELS[status] + (record.pr ? " · " + record.pr.url : "") + checked;
+    const actions = h_flex2().gap(1).items_center().child(iconButton(MOD, id + "-message", "message", "Message this cloud session", (_e, cx) => this.toggleMessage(record, cx), { active: Boolean(box), size: 22 })).child(iconButton(MOD, id + "-teleport", "teleport", record.checkout ? "Teleport into " + record.checkout : "No local checkout recorded", (_e, cx) => this.teleport(record, cx), { disabled: !record.checkout, size: 22 })).child(iconButton(MOD, id + "-remove", "close", "Stop following (the cloud session is untouched)", (_e, cx) => this.remove(record, cx), { size: 22 }));
+    return v_flex2().id(id).px(7).py(6).gap(3).rounded(5).tooltip(tip).role("button").accessibility_label(record.title).cursor_pointer().hover((s) => s.bg(t.hover)).on_click((_e, cx) => this.open(record, cx)).child(h_flex2().h(17).gap(7).items_center().child(icon(MOD, "cloud", 15).text_color(t.muted)).child(div2().flex_1().min_w(0).truncate().text_color(t.foreground).child(record.title)).child(div2().size(5).rounded_full().flex_none().bg(t[STATUS_COLORS[status]] || t.dim))).child(h_flex2().h(20).gap(7).items_center().child(div2().w(15)).child(div2().flex_1().min_w(0).text_size(9).text_color(t.dim).truncate().child(record.repo + " · " + STATUS_LABELS[status])).child(actions)).when(Boolean(box), (e) => e.child(h_flex2().gap(5).items_center().on_mouse_down("left", (_e, cx) => cx.stop_propagation()).child(Input2.new(box).id(id + "-message-input").flex_1().h(26).px(7).bg(t.surface).border(1).border_color(t.border).rounded(5).text_size(11).text_color(t.foreground)).child(textButton(id + "-send", "Send", (_e, cx) => {
+      cx.stop_propagation();
+      return this.send(record, cx);
+    }, { primary: true, disabled: this.busy.has(record.id) })))).when(Boolean(note), (e) => e.child(div2().id(id + "-note").text_size(10).text_color(note.error ? t.blocked : t.muted).child(note.text)));
+  }
+  /** The Cloud group: one row per followed session, plus the add form when open. */
+  render() {
+    const t = colors(), records = this.data.records;
+    if (!records.length && !this.adding && !this.data.error) return null;
+    const hint = records.length && !this.data.connection ? "Set up the Reviews gh connection to follow pull requests." : this.data.pullsError;
+    return v_flex2().id("cloud-sessions").gap(1).child(h_flex2().h(23).px(4).gap(6).items_center().child(label("Cloud", { muted: true, size: 10 })).child(label(String(records.length), { muted: true, size: 9 }))).when(Boolean(this.data.error), (e) => e.child(div2().id("cloud-error").px(4).text_size(10).text_color(t.blocked).child(this.data.error))).when(Boolean(hint), (e) => e.child(div2().id("cloud-hint").px(4).text_size(9).text_color(t.dim).child(hint))).when(this.adding, (e) => e.child(this.addForm())).children(records.map((record) => this.row(record)));
+  }
+  close() {
+    this.data.close();
+    this.ref.release();
+    this.repo.release();
+    for (const box of this.boxes.values()) box.release();
+  }
+};
+
 // src/shared/telemetry.js
 import * as herdr from "herdr";
 
 // src/shared/session-bindings.js
 var clone = (v) => JSON.parse(JSON.stringify(v));
-var fail3 = (code, message) => {
+var fail5 = (code, message) => {
   throw new ConfigError(code, message);
 };
-var text2 = (v, label2, max = 256) => {
-  if (typeof v !== "string" || !v || v.length > max || ["__proto__", "prototype", "constructor"].includes(v) || /[\u0000-\u001f]/.test(v)) fail3("INVALID_BINDING", `Invalid ${label2}`);
+var text3 = (v, label2, max = 256) => {
+  if (typeof v !== "string" || !v || v.length > max || ["__proto__", "prototype", "constructor"].includes(v) || /[\u0000-\u001f]/.test(v)) fail5("INVALID_BINDING", `Invalid ${label2}`);
   return v;
 };
 var time = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
@@ -344,48 +879,48 @@ var bytes = (value) => {
 };
 var empty = () => ({ v: 1, revision: 0, proposals: {}, terminals: {} });
 var proofKinds = /* @__PURE__ */ new Set(["caller-session-id", "resume-argv", "pid-open-file", "provider-handshake"]);
-var conflict2 = (e) => ["STALE", "CONFLICT", "EAGAIN"].includes(e?.code) || /stale|contents?.*changed|expected.*match|compare.and.set/i.test(e?.message || "");
+var conflict3 = (e) => ["STALE", "CONFLICT", "EAGAIN"].includes(e?.code) || /stale|contents?.*changed|expected.*match|compare.and.set/i.test(e?.message || "");
 function validateAck(ack) {
-  text2(ack?.tabId, "acknowledged tab ID");
+  text3(ack?.tabId, "acknowledged tab ID");
   terminalKey(ack?.terminal);
   return clone(ack);
 }
 function validateProof(proof, session2, terminal) {
-  if (!proof || !proofKinds.has(proof.kind) || !time(proof.observedAt) || typeof proof.sourceDigest !== "string" || !proof.sourceDigest || proof.sourceDigest.length > 512) fail3("UNPROVEN_SESSION", "Exact provider-session evidence is required");
-  if (!proof.session || sessionKey(proof.session) !== sessionKey(session2) || terminalKey(proof.terminal) !== terminalKey(terminal) || session2.machine !== terminal.machine) fail3("UNPROVEN_SESSION", "Session proof does not match the exact host/session/terminal generation");
+  if (!proof || !proofKinds.has(proof.kind) || !time(proof.observedAt) || typeof proof.sourceDigest !== "string" || !proof.sourceDigest || proof.sourceDigest.length > 512) fail5("UNPROVEN_SESSION", "Exact provider-session evidence is required");
+  if (!proof.session || sessionKey(proof.session) !== sessionKey(session2) || terminalKey(proof.terminal) !== terminalKey(terminal) || session2.machine !== terminal.machine) fail5("UNPROVEN_SESSION", "Session proof does not match the exact host/session/terminal generation");
   return clone(proof);
 }
 function indexes(d) {
   const result = {};
   for (const [id, r] of Object.entries(d.proposals)) if (r.state === "committed") {
     const key2 = terminalKey(r.ack.terminal);
-    if (result[key2]) fail3("BINDING_CONFLICT", "A terminal generation cannot belong to two work origins");
+    if (result[key2]) fail5("BINDING_CONFLICT", "A terminal generation cannot belong to two work origins");
     result[key2] = id;
   }
   d.terminals = result;
   return d;
 }
 function validateBindingStore(value) {
-  if (!value || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !value.proposals || !value.terminals || Array.isArray(value.proposals) || Array.isArray(value.terminals)) fail3("INVALID_BINDING", "Invalid binding store; original preserved");
+  if (!value || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !value.proposals || !value.terminals || Array.isArray(value.proposals) || Array.isArray(value.terminals)) fail5("INVALID_BINDING", "Invalid binding store; original preserved");
   const d = clone(value);
   for (const [id, r] of Object.entries(d.proposals)) {
-    text2(id, "request ID");
-    text2(r.originId, "origin ID");
-    if (!["proposed", "commit-pending", "committed", "invalidated"].includes(r.state) || !time(r.createdAt) || !time(r.updatedAt) || r.updatedAt < r.createdAt) fail3("INVALID_BINDING", "Invalid binding state/timestamps");
+    text3(id, "request ID");
+    text3(r.originId, "origin ID");
+    if (!["proposed", "commit-pending", "committed", "invalidated"].includes(r.state) || !time(r.createdAt) || !time(r.updatedAt) || r.updatedAt < r.createdAt) fail5("INVALID_BINDING", "Invalid binding state/timestamps");
     if (r.session !== null) r.session = sessionIdentity(r.session);
     if (r.state === "proposed" || r.state === "commit-pending") {
-      if (!time(r.expiresAt) || r.expiresAt < r.createdAt || r.invalidatedAt !== null) fail3("INVALID_BINDING", "Uncommitted proposal needs its own TTL");
-    } else if (r.expiresAt !== null) fail3("INVALID_BINDING", "Committed/invalidated records do not expire by age");
+      if (!time(r.expiresAt) || r.expiresAt < r.createdAt || r.invalidatedAt !== null) fail5("INVALID_BINDING", "Uncommitted proposal needs its own TTL");
+    } else if (r.expiresAt !== null) fail5("INVALID_BINDING", "Committed/invalidated records do not expire by age");
     if (r.state === "invalidated") {
-      if (!time(r.invalidatedAt) || r.invalidatedAt < r.createdAt || r.invalidatedAt > r.updatedAt) fail3("INVALID_BINDING", "Invalid first-invalidation timestamp");
-    } else if (r.invalidatedAt !== null) fail3("INVALID_BINDING", "Unexpected invalidation timestamp");
+      if (!time(r.invalidatedAt) || r.invalidatedAt < r.createdAt || r.invalidatedAt > r.updatedAt) fail5("INVALID_BINDING", "Invalid first-invalidation timestamp");
+    } else if (r.invalidatedAt !== null) fail5("INVALID_BINDING", "Unexpected invalidation timestamp");
     if (r.state === "committed" || r.state === "commit-pending") {
       validateAck(r.ack);
       if (r.session) validateProof(r.proof, r.session, r.ack.terminal);
     } else if (r.ack) validateAck(r.ack);
   }
   const expected = indexes(clone(d)).terminals;
-  if (Object.keys(expected).length !== Object.keys(d.terminals).length || Object.entries(expected).some(([k, id]) => d.terminals[k] !== id)) fail3("INVALID_BINDING", "Terminal index does not match retained committed records");
+  if (Object.keys(expected).length !== Object.keys(d.terminals).length || Object.entries(expected).some(([k, id]) => d.terminals[k] !== id)) fail5("INVALID_BINDING", "Terminal index does not match retained committed records");
   return d;
 }
 function pruneBindings(draft, now, { recoveryRecorded = [] } = {}) {
@@ -396,7 +931,7 @@ function pruneBindings(draft, now, { recoveryRecorded = [] } = {}) {
   return indexes(draft);
 }
 function capacity(d) {
-  if (Object.keys(d.proposals).length > 500 || bytes(JSON.stringify(d)) > 768 * 1024) fail3("BINDING_CAPACITY", "Session binding storage is full. Reconcile closed terminals or archive recovered requests; active mappings were preserved.");
+  if (Object.keys(d.proposals).length > 500 || bytes(JSON.stringify(d)) > 768 * 1024) fail5("BINDING_CAPACITY", "Session binding storage is full. Reconcile closed terminals or archive recovered requests; active mappings were preserved.");
 }
 var BindingStore = class {
   constructor(io, { clock = () => Date.now() } = {}) {
@@ -407,18 +942,18 @@ var BindingStore = class {
   }
   now() {
     const n = this.clock();
-    if (!time(n)) fail3("INVALID_CLOCK", "The binding clock is unavailable");
+    if (!time(n)) fail5("INVALID_CLOCK", "The binding clock is unavailable");
     return n;
   }
   async read() {
     const raw = await this.io.readTextFile(this.path);
     if (raw === null) return { raw, value: empty() };
-    if (typeof raw !== "string" || bytes(raw) > 768 * 1024) fail3("BINDING_CAPACITY", "Binding file exceeds its supported size");
+    if (typeof raw !== "string" || bytes(raw) > 768 * 1024) fail5("BINDING_CAPACITY", "Binding file exceeds its supported size");
     let data;
     try {
       data = JSON.parse(raw);
     } catch {
-      fail3("INVALID_BINDING", "Binding JSON is invalid; original preserved");
+      fail5("INVALID_BINDING", "Binding JSON is invalid; original preserved");
     }
     const value = validateBindingStore(data);
     capacity(value);
@@ -431,7 +966,7 @@ var BindingStore = class {
       const result = edit2(draft, now);
       pruneBindings(draft, now, { recoveryRecorded });
       draft.revision++;
-      if (!Number.isSafeInteger(draft.revision)) fail3("BINDING_CAPACITY", "Binding revision exhausted");
+      if (!Number.isSafeInteger(draft.revision)) fail5("BINDING_CAPACITY", "Binding revision exhausted");
       const next = validateBindingStore(indexes(draft));
       capacity(next);
       await this.io.ensureDirectory?.(this.path.slice(0, this.path.lastIndexOf("/")));
@@ -439,39 +974,39 @@ var BindingStore = class {
         await this.io.writeTextFile(this.path, JSON.stringify(next) + "\n", raw);
         return { value: next, result };
       } catch (e) {
-        if (!conflict2(e)) throw e;
+        if (!conflict3(e)) throw e;
       }
     }
-    fail3("CONFLICT", "Binding state changed repeatedly; retry the acknowledged commit without launching again");
+    fail5("CONFLICT", "Binding state changed repeatedly; retry the acknowledged commit without launching again");
   }
   async propose({ requestId, originId, session: session2 = null }, { recoveryRecorded = [] } = {}) {
-    text2(requestId, "request ID");
-    text2(originId, "origin ID");
-    const exact = session2 ? sessionIdentity(session2) : null;
+    text3(requestId, "request ID");
+    text3(originId, "origin ID");
+    const exact2 = session2 ? sessionIdentity(session2) : null;
     return (await this.edit((d, now) => {
       const old = d.proposals[requestId];
       if (old) {
-        if (old.originId !== originId || JSON.stringify(old.session) !== JSON.stringify(exact)) fail3("BINDING_CONFLICT", "A request cannot change its origin or exact session");
-        if (old.state === "invalidated" || ["proposed", "commit-pending"].includes(old.state) && old.expiresAt <= now) fail3("RECOVERY_REQUIRED", "The interrupted request needs recovery; do not launch it again");
+        if (old.originId !== originId || JSON.stringify(old.session) !== JSON.stringify(exact2)) fail5("BINDING_CONFLICT", "A request cannot change its origin or exact session");
+        if (old.state === "invalidated" || ["proposed", "commit-pending"].includes(old.state) && old.expiresAt <= now) fail5("RECOVERY_REQUIRED", "The interrupted request needs recovery; do not launch it again");
         return clone(old);
       }
-      const record = { originId, session: exact, state: "proposed", createdAt: now, updatedAt: now, invalidatedAt: null, expiresAt: now + 3e5 };
+      const record = { originId, session: exact2, state: "proposed", createdAt: now, updatedAt: now, invalidatedAt: null, expiresAt: now + 3e5 };
       d.proposals[requestId] = record;
       return clone(record);
     }, { recoveryRecorded })).result;
   }
   async transition(requestId, ack, proof, { pending = false, session: session2 } = {}) {
     validateAck(ack);
-    const exact = session2 ? sessionIdentity(session2) : null;
+    const exact2 = session2 ? sessionIdentity(session2) : null;
     return (await this.edit((d, now) => {
       const r = d.proposals[requestId];
-      if (!r || r.state === "invalidated") fail3("RECOVERY_REQUIRED", "No active proposal exists for this acknowledged launch");
-      if (r.state !== "committed" && r.expiresAt <= now) fail3("RECOVERY_REQUIRED", "Acknowledged launch proposal expired; retain it for explicit recovery");
-      if (now < r.updatedAt) fail3("INVALID_CLOCK", "The binding clock moved backwards");
-      const selected = r.session || exact;
-      if (r.session && exact && sessionKey(r.session) !== sessionKey(exact)) fail3("BINDING_CONFLICT", "A committed request cannot change provider sessions");
+      if (!r || r.state === "invalidated") fail5("RECOVERY_REQUIRED", "No active proposal exists for this acknowledged launch");
+      if (r.state !== "committed" && r.expiresAt <= now) fail5("RECOVERY_REQUIRED", "Acknowledged launch proposal expired; retain it for explicit recovery");
+      if (now < r.updatedAt) fail5("INVALID_CLOCK", "The binding clock moved backwards");
+      const selected = r.session || exact2;
+      if (r.session && exact2 && sessionKey(r.session) !== sessionKey(exact2)) fail5("BINDING_CONFLICT", "A committed request cannot change provider sessions");
       if (selected) validateProof(proof, selected, ack.terminal);
-      if (r.ack && (r.ack.tabId !== ack.tabId || terminalKey(r.ack.terminal) !== terminalKey(ack.terminal))) fail3("BINDING_CONFLICT", "Acknowledgment belongs to a different tab/terminal generation");
+      if (r.ack && (r.ack.tabId !== ack.tabId || terminalKey(r.ack.terminal) !== terminalKey(ack.terminal))) fail5("BINDING_CONFLICT", "Acknowledgment belongs to a different tab/terminal generation");
       if (r.state === "committed" && r.session && selected && sessionKey(r.session) === sessionKey(selected)) return clone(r);
       if (r.state === "committed" && pending) return clone(r);
       r.session = selected || null;
@@ -498,11 +1033,11 @@ var BindingStore = class {
     return r ? { ...clone(r), recoveryRequired: ["proposed", "commit-pending"].includes(r.state) && r.expiresAt <= this.now() } : null;
   }
   async invalidate(requestId, reason = "Exact generation/source no longer valid") {
-    text2(reason, "invalidation reason", 512);
+    text3(reason, "invalidation reason", 512);
     return (await this.edit((d, now) => {
       const r = d.proposals[requestId];
       if (!r) return null;
-      if (now < r.updatedAt) fail3("INVALID_CLOCK", "The binding clock moved backwards");
+      if (now < r.updatedAt) fail5("INVALID_CLOCK", "The binding clock moved backwards");
       r.invalidatedAt = r.invalidatedAt ?? now;
       r.updatedAt = now;
       r.state = "invalidated";
@@ -526,7 +1061,7 @@ var BindingStore = class {
         const actual = generations.get(r.ack.terminal.address), changed = actual && terminalKey(actual) !== terminalKey(r.ack.terminal), missing = !actual && authoritative;
         const disabled = r.session && enabledSources && !enabledSources.some((s) => s.machine === r.session.machine && s.provider === r.session.provider && s.credentialScope === r.session.credentialScope && s.providerRoot === r.session.providerRoot);
         if (changed || missing || disabled) {
-          if (now < r.updatedAt) fail3("INVALID_CLOCK", "The binding clock moved backwards");
+          if (now < r.updatedAt) fail5("INVALID_CLOCK", "The binding clock moved backwards");
           r.state = "invalidated";
           r.invalidatedAt = r.invalidatedAt ?? now;
           r.updatedAt = now;
@@ -546,7 +1081,7 @@ var BindingStore = class {
       const invalidated = [];
       for (const [id, r] of Object.entries(d.proposals)) {
         if (r.state === "invalidated" || !r.session || enabledSources.some((s) => s.machine === r.session.machine && s.provider === r.session.provider && s.credentialScope === r.session.credentialScope && s.providerRoot === r.session.providerRoot)) continue;
-        if (now < r.updatedAt) fail3("INVALID_CLOCK", "The binding clock moved backwards");
+        if (now < r.updatedAt) fail5("INVALID_CLOCK", "The binding clock moved backwards");
         r.state = "invalidated";
         r.invalidatedAt = r.invalidatedAt ?? now;
         r.updatedAt = now;
@@ -561,33 +1096,33 @@ var BindingStore = class {
 
 // src/shared/usage-sources.js
 var providers = /* @__PURE__ */ new Set(["codex", "claude", "grok"]);
-var copy2 = (value) => JSON.parse(JSON.stringify(value));
-var fail4 = (message) => {
+var copy3 = (value) => JSON.parse(JSON.stringify(value));
+var fail6 = (message) => {
   throw Object.assign(Error(message), { code: "INVALID_USAGE_SOURCE" });
 };
-var text3 = (value, max = 200) => typeof value === "string" && value.length > 0 && value.length <= max && !/[\u0000-\u001f]/.test(value);
+var text4 = (value, max = 200) => typeof value === "string" && value.length > 0 && value.length <= max && !/[\u0000-\u001f]/.test(value);
 var broad = /* @__PURE__ */ new Set(["/", "/Users", "/home", "/tmp", "/private", "/private/tmp", "/var", "/etc", "/usr", "/opt", "/Volumes"]);
 var forbidden = (path) => path.toLowerCase().split("/").some((p) => [".ssh", ".aws", ".azure", "keychains", "auth", "credentials", "secrets", "auth.json", ".credentials.json", "credentials.json", "settings.json", "config.json", "keys.json"].includes(p) || /\.(pem|key|p12)$/.test(p));
 var canonical = (value) => {
   try {
-    if (!text3(value, 4096) || canonicalRepoPath(value) !== value || broad.has(value) || forbidden(value)) fail4("Usage roots must be dedicated canonical metadata directories, outside credential paths.");
+    if (!text4(value, 4096) || canonicalRepoPath(value) !== value || broad.has(value) || forbidden(value)) fail6("Usage roots must be dedicated canonical metadata directories, outside credential paths.");
     return value;
   } catch {
-    fail4("Usage roots must be dedicated canonical metadata directories, outside credential paths.");
+    fail6("Usage roots must be dedicated canonical metadata directories, outside credential paths.");
   }
 };
 function validateUsageSource(value) {
-  if (!value || typeof value !== "object" || Array.isArray(value) || value.v !== 1 || !providers.has(value.provider) || typeof value.enabled !== "boolean" || !text3(value.credentialScope)) fail4("A versioned provider/profile source is required.");
+  if (!value || typeof value !== "object" || Array.isArray(value) || value.v !== 1 || !providers.has(value.provider) || typeof value.enabled !== "boolean" || !text4(value.credentialScope)) fail6("A versioned provider/profile source is required.");
   const machine2 = machineIdentity(value.machine), providerRoot = canonical(value.providerRoot);
-  if (!Object.hasOwn(value, "machine")) fail4("An explicit source machine is required.");
-  if (!Array.isArray(value.roots) || !value.roots.length || value.roots.length > 8 || value.cacheRoots !== void 0 && (!Array.isArray(value.cacheRoots) || value.cacheRoots.length > 4)) fail4("Configure one to eight session roots and at most four explicit cache roots.");
+  if (!Object.hasOwn(value, "machine")) fail6("An explicit source machine is required.");
+  if (!Array.isArray(value.roots) || !value.roots.length || value.roots.length > 8 || value.cacheRoots !== void 0 && (!Array.isArray(value.cacheRoots) || value.cacheRoots.length > 4)) fail6("Configure one to eight session roots and at most four explicit cache roots.");
   const check = (path) => {
     canonical(path);
-    if (path === providerRoot || providerRoot.startsWith(path + "/") || /^\/(Users|home)\/[^/]+$/.test(path) || ["Library", "Desktop", "Documents", "Downloads", "Applications", ".config", ".cache"].includes(path.split("/").at(-1))) fail4("A profile, home, broad personal directory or ancestor cannot be scanned.");
+    if (path === providerRoot || providerRoot.startsWith(path + "/") || /^\/(Users|home)\/[^/]+$/.test(path) || ["Library", "Desktop", "Documents", "Downloads", "Applications", ".config", ".cache"].includes(path.split("/").at(-1))) fail6("A profile, home, broad personal directory or ancestor cannot be scanned.");
     return path;
   };
   const roots = [...new Set(value.roots.map(check))], cacheRoots = [...new Set((value.cacheRoots || []).map(check))];
-  if (roots.some((root) => cacheRoots.includes(root))) fail4("Session and sanitized cache roots must be separate.");
+  if (roots.some((root) => cacheRoots.includes(root))) fail6("Session and sanitized cache roots must be separate.");
   return { v: 1, enabled: value.enabled, machine: machine2, provider: value.provider, providerRoot, credentialScope: value.credentialScope, roots, ...cacheRoots.length ? { cacheRoots } : {} };
 }
 var usageSourceKey = (source) => {
@@ -615,7 +1150,7 @@ async function ensureUsageDefaults(io, options) {
 }
 var UsageSourceRegistry = class {
   constructor(io, { clearCache, invalidateBindings }) {
-    if (typeof clearCache !== "function" || typeof invalidateBindings !== "function") fail4("Source lifecycle requires cache and durable-binding invalidation capabilities.");
+    if (typeof clearCache !== "function" || typeof invalidateBindings !== "function") fail6("Source lifecycle requires cache and durable-binding invalidation capabilities.");
     this.io = io;
     this.clearCache = clearCache;
     this.invalidateBindings = invalidateBindings;
@@ -629,8 +1164,8 @@ var UsageSourceRegistry = class {
   cancel(id, source) {
     this.generations.set(id, (this.generations.get(id) || 0) + 1);
     for (const ticket of this.tickets) if (ticket.id === id) ticket.cancelled = true;
-    const result = this.clearCache(id, source ? copy2(source) : null);
-    if (result?.then) fail4("Cache invalidation must be synchronous.");
+    const result = this.clearCache(id, source ? copy3(source) : null);
+    if (result?.then) fail6("Cache invalidation must be synchronous.");
   }
   async refresh() {
     const previous = this.queue;
@@ -655,7 +1190,7 @@ var UsageSourceRegistry = class {
       const seen = /* @__PURE__ */ new Set();
       for (const source of Object.values(config.usageSources)) {
         const key2 = usageSourceKey(source);
-        if (seen.has(key2)) fail4("Duplicate provider/profile/root sources must be merged explicitly.");
+        if (seen.has(key2)) fail6("Duplicate provider/profile/root sources must be merged explicitly.");
         seen.add(key2);
       }
     } catch (error2) {
@@ -677,12 +1212,12 @@ var UsageSourceRegistry = class {
     return this.enabled();
   }
   enabled() {
-    return [...this.sources].filter(([id, source]) => source.enabled && !this.blocked.has(id)).map(([id, source]) => ({ ...copy2(source), id }));
+    return [...this.sources].filter(([id, source]) => source.enabled && !this.blocked.has(id)).map(([id, source]) => ({ ...copy3(source), id }));
   }
   begin(id) {
     const source = this.sources.get(id);
     if (this.closed || !source?.enabled || this.blocked.has(id)) return null;
-    const ticket = { id, generation: this.generations.get(id) || 0, fingerprint: usageSourceFingerprint(source), source: copy2(source), cancelled: false };
+    const ticket = { id, generation: this.generations.get(id) || 0, fingerprint: usageSourceFingerprint(source), source: copy3(source), cancelled: false };
     this.tickets.add(ticket);
     return ticket;
   }
@@ -697,15 +1232,15 @@ var UsageSourceRegistry = class {
     try {
       await this.refresh();
       if (!this.current(ticket)) return false;
-      const result = publish(value, copy2(ticket.source));
-      if (result?.then) fail4("Usage publication must be synchronous.");
+      const result = publish(value, copy3(ticket.source));
+      if (result?.then) fail6("Usage publication must be synchronous.");
       return true;
     } finally {
       this.release(ticket);
     }
   }
   async save(id, value, { expectedFingerprint } = {}) {
-    if (!text3(id, 8192) || ["__proto__", "prototype", "constructor"].includes(id)) fail4("Invalid usage source key.");
+    if (!text4(id, 8192) || ["__proto__", "prototype", "constructor"].includes(id)) fail6("Invalid usage source key.");
     const next = validateUsageSource(value), old = this.sources.get(id);
     this.blocked.add(id);
     this.cancel(id, old || next);
@@ -716,7 +1251,7 @@ var UsageSourceRegistry = class {
         config.usageSources[id] = next;
       });
       await this.refresh();
-      return copy2(next);
+      return copy3(next);
     } finally {
       this.blocked.delete(id);
     }
@@ -730,15 +1265,15 @@ var UsageSourceRegistry = class {
 };
 
 // src/shared/provider-observation.js
-var object2 = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
-var text4 = (v, max = 200) => typeof v === "string" && v.length > 0 && v.length <= max && !/[\u0000-\u001f]/.test(v);
+var object4 = (v) => v !== null && typeof v === "object" && !Array.isArray(v) && (Object.getPrototypeOf(v) === Object.prototype || Object.getPrototypeOf(v) === null);
+var text5 = (v, max = 200) => typeof v === "string" && v.length > 0 && v.length <= max && !/[\u0000-\u001f]/.test(v);
 var number = (v) => typeof v === "number" && Number.isFinite(v) && v >= 0;
 var nullableNumber = (v) => v === null || number(v);
 var timestamp = (v) => v === null || number(v) && v <= 864e13;
-var keys = (v, required, optional = []) => object2(v) && required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
+var keys = (v, required, optional = []) => object4(v) && required.every((k) => Object.hasOwn(v, k)) && Object.keys(v).every((k) => required.includes(k) || optional.includes(k));
 var providers2 = /* @__PURE__ */ new Set(["codex", "claude", "grok"]);
 var session = (value) => {
-  if (!keys(value, ["machine", "provider", "credentialScope", "providerRoot", "sessionId"]) || !(value.machine === null || text4(value.machine, 128)) || !providers2.has(value.provider) || !text4(value.credentialScope) || !text4(value.sessionId)) return false;
+  if (!keys(value, ["machine", "provider", "credentialScope", "providerRoot", "sessionId"]) || !(value.machine === null || text5(value.machine, 128)) || !providers2.has(value.provider) || !text5(value.credentialScope) || !text5(value.sessionId)) return false;
   try {
     return sessionIdentity(value).providerRoot === value.providerRoot;
   } catch {
@@ -746,34 +1281,34 @@ var session = (value) => {
   }
 };
 function validateProviderObservation(value, { identity } = {}) {
-  const fail6 = (code, reason) => ({ ok: false, code, reason });
-  if (!object2(value) || !["available", "unavailable"].includes(value.state)) return fail6("INVALID_OBSERVATION", "Provider observation envelope is invalid.");
-  if (value.identity !== null && !session(value.identity)) return fail6("INVALID_OBSERVATION", "Provider session identity is invalid.");
-  if (value.state === "available" && value.identity === null) return fail6("INVALID_OBSERVATION", "Measured observations require an exact session identity.");
+  const fail8 = (code, reason) => ({ ok: false, code, reason });
+  if (!object4(value) || !["available", "unavailable"].includes(value.state)) return fail8("INVALID_OBSERVATION", "Provider observation envelope is invalid.");
+  if (value.identity !== null && !session(value.identity)) return fail8("INVALID_OBSERVATION", "Provider session identity is invalid.");
+  if (value.state === "available" && value.identity === null) return fail8("INVALID_OBSERVATION", "Measured observations require an exact session identity.");
   const p = value.provenance;
-  if (!keys(p, ["provider", "format", "formatVersion", "sourceDigest", "observedAt"]) || !providers2.has(p.provider) || !text4(p.format, 80) || !(p.formatVersion === null || text4(p.formatVersion, 80)) || typeof p.sourceDigest !== "string" || !/^[a-f0-9]{64}$/.test(p.sourceDigest) || !timestamp(p.observedAt) || value.identity && p.provider !== value.identity.provider) return fail6("INVALID_OBSERVATION", "Provider provenance is invalid.");
+  if (!keys(p, ["provider", "format", "formatVersion", "sourceDigest", "observedAt"]) || !providers2.has(p.provider) || !text5(p.format, 80) || !(p.formatVersion === null || text5(p.formatVersion, 80)) || typeof p.sourceDigest !== "string" || !/^[a-f0-9]{64}$/.test(p.sourceDigest) || !timestamp(p.observedAt) || value.identity && p.provider !== value.identity.provider) return fail8("INVALID_OBSERVATION", "Provider provenance is invalid.");
   if (identity) {
-    if (!session(identity)) return fail6("INVALID_IDENTITY", "The requested session identity is invalid.");
-    if (p.provider !== identity.provider || value.identity && sessionKey(value.identity) !== sessionKey(identity)) return fail6("SCOPE_MISMATCH", "Observation belongs to a different exact provider session.");
+    if (!session(identity)) return fail8("INVALID_IDENTITY", "The requested session identity is invalid.");
+    if (p.provider !== identity.provider || value.identity && sessionKey(value.identity) !== sessionKey(identity)) return fail8("SCOPE_MISMATCH", "Observation belongs to a different exact provider session.");
   }
-  if (value.state === "unavailable") return keys(value, ["state", "identity", "provenance", "code", "reason"]) && text4(value.code, 80) && text4(value.reason, 300) ? { ok: true, value } : fail6("INVALID_OBSERVATION", "Unavailable observation is invalid.");
-  if (!keys(value, ["state", "identity", "provenance", "context", "quota"], ["title", "cwd"])) return fail6("INVALID_OBSERVATION", "Unexpected provider observation fields.");
-  if (Object.hasOwn(value, "title") && !text4(value.title)) return fail6("INVALID_OBSERVATION", "Reported session title is invalid.");
+  if (value.state === "unavailable") return keys(value, ["state", "identity", "provenance", "code", "reason"]) && text5(value.code, 80) && text5(value.reason, 300) ? { ok: true, value } : fail8("INVALID_OBSERVATION", "Unavailable observation is invalid.");
+  if (!keys(value, ["state", "identity", "provenance", "context", "quota"], ["title", "cwd"])) return fail8("INVALID_OBSERVATION", "Unexpected provider observation fields.");
+  if (Object.hasOwn(value, "title") && !text5(value.title)) return fail8("INVALID_OBSERVATION", "Reported session title is invalid.");
   if (Object.hasOwn(value, "cwd")) {
     try {
-      if (canonicalRepoPath(value.cwd) !== value.cwd) return fail6("INVALID_OBSERVATION", "Reported working directory is not canonical.");
+      if (canonicalRepoPath(value.cwd) !== value.cwd) return fail8("INVALID_OBSERVATION", "Reported working directory is not canonical.");
     } catch {
-      return fail6("INVALID_OBSERVATION", "Reported working directory is invalid.");
+      return fail8("INVALID_OBSERVATION", "Reported working directory is invalid.");
     }
   }
   const c = value.context;
-  if (c !== null && (!keys(c, ["usedTokens", "windowTokens", "compactionLimitTokens", "reportedUsedPercent"]) || Object.values(c).some((v) => !nullableNumber(v)) || c.reportedUsedPercent !== null && c.reportedUsedPercent > 100)) return fail6("INVALID_OBSERVATION", "Provider context fields are invalid.");
+  if (c !== null && (!keys(c, ["usedTokens", "windowTokens", "compactionLimitTokens", "reportedUsedPercent"]) || Object.values(c).some((v) => !nullableNumber(v)) || c.reportedUsedPercent !== null && c.reportedUsedPercent > 100)) return fail8("INVALID_OBSERVATION", "Provider context fields are invalid.");
   const q = value.quota;
   if (q !== null) {
-    if (!keys(q, ["proof", "windows"])) return fail6("INVALID_OBSERVATION", "Provider quota envelope is invalid.");
+    if (!keys(q, ["proof", "windows"])) return fail8("INVALID_OBSERVATION", "Provider quota envelope is invalid.");
     const proof = q.proof;
-    if (!keys(proof, ["kind", "machine", "credentialScope", "accountId", "poolId"]) || !["provider-account", "session-account-digest", "session-report", "none"].includes(proof.kind) || proof.machine !== value.identity.machine || proof.credentialScope !== value.identity.credentialScope || ![proof.accountId, proof.poolId].every((v) => v === null || text4(v))) return fail6("INVALID_OBSERVATION", "Provider quota identity is invalid.");
-    if (!Array.isArray(q.windows) || q.windows.length > 16 || q.windows.some((w) => !keys(w, ["name", "remainingPercent", "observedAt", "resetsAt"]) || !text4(w.name, 80) || !number(w.remainingPercent) || w.remainingPercent > 100 || !timestamp(w.observedAt) || !timestamp(w.resetsAt))) return fail6("INVALID_OBSERVATION", "Provider quota windows are invalid.");
+    if (!keys(proof, ["kind", "machine", "credentialScope", "accountId", "poolId"]) || !["provider-account", "session-account-digest", "session-report", "none"].includes(proof.kind) || proof.machine !== value.identity.machine || proof.credentialScope !== value.identity.credentialScope || ![proof.accountId, proof.poolId].every((v) => v === null || text5(v))) return fail8("INVALID_OBSERVATION", "Provider quota identity is invalid.");
+    if (!Array.isArray(q.windows) || q.windows.length > 16 || q.windows.some((w) => !keys(w, ["name", "remainingPercent", "observedAt", "resetsAt"]) || !text5(w.name, 80) || !number(w.remainingPercent) || w.remainingPercent > 100 || !timestamp(w.observedAt) || !timestamp(w.resetsAt))) return fail8("INVALID_OBSERVATION", "Provider quota windows are invalid.");
   }
   return { ok: true, value };
 }
@@ -1442,11 +1977,11 @@ except Exception:
 `;
 var unavailable = (on, code = "UNAVAILABLE") => Object.freeze({ ok: false, code, machine: on });
 async function call(io, on, request) {
-  const text6 = JSON.stringify(request);
-  if (text6.length > HOST_LIMITS.request) return unavailable(on, "REQUEST_TOO_LARGE");
+  const text7 = JSON.stringify(request);
+  if (text7.length > HOST_LIMITS.request) return unavailable(on, "REQUEST_TOO_LARGE");
   let result;
   try {
-    result = await io.exec("python3", ["-c", HOST_HELPER, text6], { on });
+    result = await io.exec("python3", ["-c", HOST_HELPER, text7], { on });
   } catch {
     return unavailable(on, "HOST_UNAVAILABLE");
   }
@@ -1539,7 +2074,7 @@ var bytes2 = (value) => {
   }
   return size;
 };
-var fail5 = (code, message) => {
+var fail7 = (code, message) => {
   throw Object.assign(Error(message), { code });
 };
 var claudeForeground = (raw) => {
@@ -1549,7 +2084,7 @@ var claudeForeground = (raw) => {
 var sameScope = (scope, source) => scope && ["machine", "provider", "providerRoot", "credentialScope"].every((k) => scope[k] === source[k]);
 var TelemetryBridge = class {
   constructor(mod, api = herdr, { clock = () => Date.now() } = {}) {
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(mod)) fail5("INVALID_MOD", "A safe owning mod name is required.");
+    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(mod)) fail7("INVALID_MOD", "A safe owning mod name is required.");
     this.mod = mod;
     this.io = createConfigIO(api);
     this.clock = clock;
@@ -1597,7 +2132,7 @@ var TelemetryBridge = class {
       if (this.activeHosts >= 4) await this.slot();
       else this.activeHosts++;
       acquired = true;
-      if (this.closed) fail5("CLOSED", "Telemetry view was closed.");
+      if (this.closed) fail7("CLOSED", "Telemetry view was closed.");
       return await work();
     } finally {
       if (acquired) this.unslot();
@@ -1616,11 +2151,11 @@ var TelemetryBridge = class {
           if (m.name === null) home = this.io.home();
           else {
             const result = await this.io.exec("python3", ["-c", 'import os,json; print(json.dumps({"home":os.path.realpath(os.path.expanduser("~"))}))'], { on: m.name });
-            if (result.code !== 0) fail5("HOST_UNSUPPORTED", "Python metadata helpers are unavailable on this machine.");
+            if (result.code !== 0) fail7("HOST_UNSUPPORTED", "Python metadata helpers are unavailable on this machine.");
             try {
               home = JSON.parse(result.stdout).home;
             } catch {
-              fail5("INVALID_HOME", "The machine did not report its metadata home.");
+              fail7("INVALID_HOME", "The machine did not report its metadata home.");
             }
           }
           if (this.closed) return;
@@ -1635,32 +2170,32 @@ var TelemetryBridge = class {
   async collector() {
     if (this.code) return this.code;
     const code = await this.io.readTextFile(this.io.appHome() + "/mods/" + this.mod + "/collector.py");
-    if (typeof code !== "string" || !code.length || bytes2(code) > 65536) fail5("COLLECTOR_UNAVAILABLE", "This mod has no valid self-contained bounded collector.");
+    if (typeof code !== "string" || !code.length || bytes2(code) > 65536) fail7("COLLECTOR_UNAVAILABLE", "This mod has no valid self-contained bounded collector.");
     this.code = code;
     return code;
   }
   async request(source, { operation = "observe", identities = [], cursor, roots, limit = 50 } = {}) {
     const request = { v: 1, operation, source, ...identities.length ? { identities } : {}, ...cursor ? { cursor } : {}, ...roots ? { roots } : {}, limit };
     const serialized = JSON.stringify(request);
-    if (bytes2(serialized) > 65536) fail5("REQUEST_TOO_LARGE", "The metadata request exceeds its bounded size.");
+    if (bytes2(serialized) > 65536) fail7("REQUEST_TOO_LARGE", "The metadata request exceeds its bounded size.");
     const code = await this.collector();
-    if (this.closed) fail5("CLOSED", "Telemetry view was closed.");
+    if (this.closed) fail7("CLOSED", "Telemetry view was closed.");
     const result = await this.io.exec("python3", ["-c", code, serialized], { on: source.machine });
-    if (result.code !== 0) fail5("HOST_UNAVAILABLE", "The destination machine could not run its read-only Python collector.");
-    if (typeof result.stdout !== "string" || bytes2(result.stdout) > 524288) fail5("RESPONSE_TOO_LARGE", "The metadata response exceeds its bounded size.");
+    if (result.code !== 0) fail7("HOST_UNAVAILABLE", "The destination machine could not run its read-only Python collector.");
+    if (typeof result.stdout !== "string" || bytes2(result.stdout) > 524288) fail7("RESPONSE_TOO_LARGE", "The metadata response exceeds its bounded size.");
     let response;
     try {
       response = JSON.parse(result.stdout);
     } catch {
-      fail5("INVALID_RESPONSE", "The metadata response is not valid JSON.");
+      fail7("INVALID_RESPONSE", "The metadata response is not valid JSON.");
     }
-    if (response?.v !== 1 || !sameScope(response.scope, source)) fail5("SCOPE_MISMATCH", "The metadata response belongs to a different host/provider/profile.");
-    if (response.state === "error") fail5("SOURCE_UNAVAILABLE", "The configured metadata source is unavailable or unsupported.");
-    if (!Array.isArray(response.data) || response.data.length > limit || typeof response.truncated !== "boolean" || !(response.cursor === null || typeof response.cursor === "string" && response.cursor.length <= 512) || !Array.isArray(response.errors) || !response.scan || !Number.isInteger(response.scan.indexed) || response.scan.indexed < 0 || response.scan.indexed > 1e3 || !Number.isFinite(response.scan.bytes) || response.scan.bytes < 0 || response.scan.bytes > 4 * 1024 * 1024) fail5("INVALID_RESPONSE", "The metadata response violates the bounded collector protocol.");
+    if (response?.v !== 1 || !sameScope(response.scope, source)) fail7("SCOPE_MISMATCH", "The metadata response belongs to a different host/provider/profile.");
+    if (response.state === "error") fail7("SOURCE_UNAVAILABLE", "The configured metadata source is unavailable or unsupported.");
+    if (!Array.isArray(response.data) || response.data.length > limit || typeof response.truncated !== "boolean" || !(response.cursor === null || typeof response.cursor === "string" && response.cursor.length <= 512) || !Array.isArray(response.errors) || !response.scan || !Number.isInteger(response.scan.indexed) || response.scan.indexed < 0 || response.scan.indexed > 1e3 || !Number.isFinite(response.scan.bytes) || response.scan.bytes < 0 || response.scan.bytes > 4 * 1024 * 1024) fail7("INVALID_RESPONSE", "The metadata response violates the bounded collector protocol.");
     const requested = new Set(identities.map(sessionKey));
     for (const value of response.data) {
       const checked = validateProviderObservation(value);
-      if (!checked.ok || value.provenance.provider !== source.provider || value.identity && (!sameScope(value.identity, source) || operation === "observe" && !requested.has(sessionKey(value.identity)))) fail5("INVALID_OBSERVATION", "The collector returned malformed or wrong-scope session metadata.");
+      if (!checked.ok || value.provenance.provider !== source.provider || value.identity && (!sameScope(value.identity, source) || operation === "observe" && !requested.has(sessionKey(value.identity)))) fail7("INVALID_OBSERVATION", "The collector returned malformed or wrong-scope session metadata.");
     }
     return response;
   }
@@ -1670,7 +2205,7 @@ var TelemetryBridge = class {
     for (const identity of identities) {
       const next = [...current, identity], request = { v: 1, operation: "observe", source, identities: next, roots, limit: 50 };
       if (next.length > 50 || bytes2(JSON.stringify(request)) > 64e3) {
-        if (!current.length) fail5("REQUEST_TOO_LARGE", "The exact session scope cannot fit a bounded collector request.");
+        if (!current.length) fail7("REQUEST_TOO_LARGE", "The exact session scope cannot fit a bounded collector request.");
         batches.push(current);
         current = [identity];
       } else current = next;
@@ -1720,32 +2255,32 @@ var TelemetryBridge = class {
     const unique = /* @__PURE__ */ new Map();
     for (const p of processes) if (!unique.has(p.pid)) unique.set(p.pid, { pid: p.pid, notBefore: p.notBefore });
     const request = { v: 1, operation: "adopt", source, pids: [...unique.values()].slice(0, 64) }, asked = new Set(request.pids.map((p) => p.pid)), serialized = JSON.stringify(request);
-    if (bytes2(serialized) > 65536) fail5("REQUEST_TOO_LARGE", "The adoption request exceeds its bounded size.");
+    if (bytes2(serialized) > 65536) fail7("REQUEST_TOO_LARGE", "The adoption request exceeds its bounded size.");
     const code = await this.collector();
-    if (this.closed) fail5("CLOSED", "Telemetry view was closed.");
+    if (this.closed) fail7("CLOSED", "Telemetry view was closed.");
     const result = await this.io.exec("python3", ["-c", code, serialized], { on: source.machine });
-    if (result.code !== 0 || typeof result.stdout !== "string" || bytes2(result.stdout) > 65536) fail5("HOST_UNAVAILABLE", "The destination machine could not run its read-only Python collector.");
+    if (result.code !== 0 || typeof result.stdout !== "string" || bytes2(result.stdout) > 65536) fail7("HOST_UNAVAILABLE", "The destination machine could not run its read-only Python collector.");
     let response;
     try {
       response = JSON.parse(result.stdout);
     } catch {
-      fail5("INVALID_RESPONSE", "The adoption response is not valid JSON.");
+      fail7("INVALID_RESPONSE", "The adoption response is not valid JSON.");
     }
-    if (response?.v !== 1 || !sameScope(response.scope, source) || !Array.isArray(response.adopt)) fail5("SCOPE_MISMATCH", "The adoption response belongs to a different host/provider/profile.");
+    if (response?.v !== 1 || !sameScope(response.scope, source) || !Array.isArray(response.adopt)) fail7("SCOPE_MISMATCH", "The adoption response belongs to a different host/provider/profile.");
     const found2 = /* @__PURE__ */ new Map(), UUID4 = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     for (const row of response.adopt) if (row && asked.has(row.pid) && typeof row.sessionId === "string" && UUID4.test(row.sessionId)) found2.set(row.pid, row.sessionId);
     return found2;
   }
   async full(address, machine2) {
     const local = localTerminalAddress(address, machine2), result = await this.io.exec("hc", ["get", local, "--json"], { on: machine2 });
-    if (result.code !== 0 || typeof result.stdout !== "string" || bytes2(result.stdout) > 1048576) fail5("TERMINAL_UNAVAILABLE", "The exact terminal generation is unavailable on its machine.");
+    if (result.code !== 0 || typeof result.stdout !== "string" || bytes2(result.stdout) > 1048576) fail7("TERMINAL_UNAVAILABLE", "The exact terminal generation is unavailable on its machine.");
     let raw;
     try {
       raw = JSON.parse(result.stdout);
     } catch {
-      fail5("INVALID_TERMINAL", "The exact terminal generation response is invalid.");
+      fail7("INVALID_TERMINAL", "The exact terminal generation response is invalid.");
     }
-    if (localTerminalAddress(raw.address, machine2) !== local) fail5("INVALID_TERMINAL", "The terminal response has a different address.");
+    if (localTerminalAddress(raw.address, machine2) !== local) fail7("INVALID_TERMINAL", "The terminal response has a different address.");
     return { raw, terminal: terminalIdentity(raw, machine2) };
   }
   async hostRefresh(machine2, agents2, { force }) {
@@ -1756,7 +2291,7 @@ var TelemetryBridge = class {
         live = listing.code === 0 ? JSON.parse(listing.stdout).terminals : null;
       } catch {
       }
-      if (!Array.isArray(live)) fail5("HOST_UNAVAILABLE", "The destination machine is offline or unavailable.");
+      if (!Array.isArray(live)) fail7("HOST_UNAVAILABLE", "The destination machine is offline or unavailable.");
       const addresses = /* @__PURE__ */ new Set();
       for (const raw of live) if (raw.state === void 0 || raw.state === "live") try {
         addresses.add(localTerminalAddress(raw.address, machine2));
@@ -1982,17 +2517,17 @@ var TelemetryBridge = class {
   async historyPage(sourceId, { cursor } = {}) {
     await this.sources.refresh();
     const ticket = this.sources.begin(sourceId);
-    if (!ticket) fail5("SOURCE_DISABLED", "This history source is disabled.");
+    if (!ticket) fail7("SOURCE_DISABLED", "This history source is disabled.");
     try {
       return await this.onHost(ticket.source.machine, async () => {
         await this.sources.refresh();
-        if (!this.sources.current(ticket)) fail5("SOURCE_CHANGED", "The history source changed before its scan.");
+        if (!this.sources.current(ticket)) fail7("SOURCE_CHANGED", "The history source changed before its scan.");
         const response = await this.request(ticket.source, { operation: "list", cursor, roots: ticket.source.roots });
         let accepted = false;
         await this.sources.accept(ticket, response, () => {
           accepted = true;
         });
-        if (!accepted) fail5("SOURCE_CHANGED", "The history source changed during its scan.");
+        if (!accepted) fail7("SOURCE_CHANGED", "The history source changed during its scan.");
         return response;
       });
     } finally {
@@ -2013,12 +2548,12 @@ var clone2 = (v) => JSON.parse(JSON.stringify(v));
 var error = (code, message) => {
   throw new ConfigError(code, message);
 };
-var text5 = (v, label2, max = 256) => {
+var text6 = (v, label2, max = 256) => {
   if (typeof v !== "string" || !v || v.length > max || ["__proto__", "prototype", "constructor"].includes(v) || /[\u0000-\u001f]/.test(v)) error("INVALID_NAMES", `Invalid ${label2}`);
   return v;
 };
-var tabKey2 = (tab) => JSON.stringify([machineIdentity(tab.machine), text5(tab.tabId, "tab ID")]);
-var name = (v) => v === null ? null : text5(v, "tab name", 512);
+var tabKey2 = (tab) => JSON.stringify([machineIdentity(tab.machine), text6(tab.tabId, "tab ID")]);
+var name = (v) => v === null ? null : text6(v, "tab name", 512);
 var empty2 = () => ({ v: 1, revision: 0, origins: {}, sessions: {}, tabs: {}, lease: null });
 function validate(value) {
   if (!value || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !value.origins || !value.sessions || !value.tabs) error("INVALID_NAMES", "Invalid name ownership file; original preserved");
@@ -2026,7 +2561,7 @@ function validate(value) {
   if (Object.keys(next.origins).length > 5e3) error("NAME_CAPACITY", "Too many retained names; archive old origins before adding more");
   for (const [id, r] of Object.entries(next.origins)) {
     if (id !== r.originId || !["auto", "manual"].includes(r.mode) || !Number.isSafeInteger(r.revision) || r.revision < 0) error("INVALID_NAMES", "Invalid name ownership record");
-    text5(id, "origin ID");
+    text6(id, "origin ID");
     name(r.manualName);
     name(r.lastAutoName);
     if (r.mode === "manual" && r.manualName === null) error("INVALID_NAMES", "A manual name is required");
@@ -2098,18 +2633,18 @@ var NameOwnership = class {
     return id && value.origins[id] ? clone2(value.origins[id]) : null;
   }
   async transferToAcknowledgedTab({ originId, session: session2 }, { machine: machine2 = null, tabId, name: initialName = null }) {
-    text5(originId, "origin ID");
+    text6(originId, "origin ID");
     tabKey2({ machine: machine2, tabId });
     name(initialName);
-    const exact = session2 ? sessionIdentity(session2) : null;
+    const exact2 = session2 ? sessionIdentity(session2) : null;
     const { result } = await this.edit((d) => {
       const old = d.origins[originId];
-      if (exact && d.sessions[sessionKey(exact)] && d.sessions[sessionKey(exact)] !== originId) error("NAME_CONFLICT", "This exact session belongs to a different work origin");
-      if (old?.session && exact && sessionKey(old.session) !== sessionKey(exact)) error("NAME_CONFLICT", "An origin cannot change its provider session");
+      if (exact2 && d.sessions[sessionKey(exact2)] && d.sessions[sessionKey(exact2)] !== originId) error("NAME_CONFLICT", "This exact session belongs to a different work origin");
+      if (old?.session && exact2 && sessionKey(old.session) !== sessionKey(exact2)) error("NAME_CONFLICT", "An origin cannot change its provider session");
       const owner = d.tabs[tabKey2({ machine: machine2, tabId })];
       if (owner && owner !== originId) error("NAME_CONFLICT", "The acknowledged tab belongs to another work origin");
       const sameTab = old?.currentTab && tabKey2(old.currentTab) === tabKey2({ machine: machine2, tabId });
-      const record = { originId, ...old?.session || exact ? { session: old?.session || exact } : {}, currentTab: { machine: machineIdentity(machine2), tabId }, mode: old?.mode || "auto", manualName: old?.manualName ?? null, lastAutoName: sameTab ? old.lastAutoName : initialName, revision: (old?.revision ?? -1) + 1 };
+      const record = { originId, ...old?.session || exact2 ? { session: old?.session || exact2 } : {}, currentTab: { machine: machineIdentity(machine2), tabId }, mode: old?.mode || "auto", manualName: old?.manualName ?? null, lastAutoName: sameTab ? old.lastAutoName : initialName, revision: (old?.revision ?? -1) + 1 };
       d.origins[originId] = record;
       return clone2(record);
     });
@@ -2192,64 +2727,8 @@ var NameOwnership = class {
   }
 };
 
-// src/shared/ui.js
-import { div, svg, image } from "gpui-kit";
-import { h_flex, v_flex, Input, InputState } from "gpui-base";
-import { theme } from "herdr";
-var palette = { chrome: "#101114", surface: "#17191d", border: "#2a2d33", foreground: "#e5e7eb", muted: "#91969f", dim: "#6b7079", accent: "#89b4fa", selected: "#253044" };
-var colors = () => ({ ...palette, ...theme() });
-var key = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
-function asset(mod, name2) {
-  if (!key.test(mod) || !key.test(name2)) throw Error("Invalid local artwork identity");
-  return `mods/${mod}/assets/${name2}.svg`;
-}
-var icon = (mod, name2, size = 15) => svg(asset(mod, name2)).size(size).flex_none();
-function safeArtworkPath(value) {
-  return typeof value === "string" && /^(icons|mods)\/[A-Za-z0-9_./-]+$/.test(value) && !value.split("/").some((v) => v === "." || v === "..") && !value.includes("//") ? value : null;
-}
-function toolIcon(mod, program, size = 16) {
-  const path = safeArtworkPath(program?.icon);
-  const el = path ? program.tint ? svg(path) : image(path) : icon(mod, "agent", size);
-  return div().id("tool-icon-" + (program?.key || "agent")).size(size).flex_none().text_color(program?.color || colors().muted).tooltip(program?.name || "Agent").accessibility_label(program?.name || "Agent").child(el.size(size).flex_none());
-}
-function iconButton(mod, id, name2, label2, action, { active = false, disabled = false, size = 28 } = {}) {
-  const t = colors();
-  let el = div().id(id).size(size).flex_none().flex().items_center().justify_center().rounded(5).text_color(disabled ? t.dim : active ? t.accent : t.muted).bg(active ? t.selected : "#00000000").tooltip(label2).accessibility_label(label2).role("button").on_mouse_down("left", (_e, cx) => cx.stop_propagation());
-  if (!disabled) el = el.cursor_pointer().hover((s) => s.bg(t.hover).text_color(t.foreground)).on_click((e, cx) => {
-    cx.stop_propagation();
-    return action(e, cx);
-  });
-  return el.child(icon(mod, name2, 15));
-}
-function textButton(id, label2, action, { primary = false, disabled = false } = {}) {
-  const t = colors();
-  let el = h_flex().id(id).h(30).px(10).gap(6).items_center().justify_center().rounded(5).text_size(12).bg(primary ? t.selected : t.surface).border(1).border_color(t.border).text_color(disabled ? t.dim : primary ? t.accent : t.foreground).accessibility_label(label2).role("button");
-  if (!disabled) el = el.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(action);
-  return el.child(label2);
-}
-var label = (value, { muted = false, size = 12 } = {}) => div().text_size(size).text_color(muted ? colors().muted : colors().foreground).truncate().child(value);
-function statusDot(status, size = 5) {
-  const t = colors();
-  return div().size(size).rounded_full().flex_none().bg(t[status] || t.dim).tooltip(status || "Unknown");
-}
-function sectionHeader(mod, id, title, count, { collapsed = false, toggle, actions = [] } = {}) {
-  return h_flex().h(32).gap(4).px(8).items_center().child(iconButton(mod, id + "-toggle", collapsed ? "chevron-right" : "chevron-down", `${collapsed ? "Expand" : "Collapse"} ${title}`, toggle)).child(label(title, { muted: true, size: 11 })).child(label(String(count ?? ""), { muted: true, size: 10 })).child(div().flex_1()).children(actions);
-}
-function createSearch(placeholder, onChange) {
-  const state2 = InputState.new({ placeholder });
-  state2.on("change", (_e, cx) => {
-    onChange(state2.value(), cx);
-    cx.notify();
-  });
-  return state2;
-}
-function searchInput(mod, id, state2) {
-  const t = colors();
-  return h_flex().id(id).h(30).gap(6).px(8).rounded(5).border(1).border_color(t.border).bg(t.chrome).items_center().child(icon(mod, "search", 13).text_color(t.dim)).child(Input.new(state2).flex_1().text_size(12).text_color(t.foreground));
-}
-
 // src/mods/mission-control-agents/main.js
-var MOD = "mission-control-agents";
+var MOD2 = "mission-control-agents";
 var STATE = "mission-control-agents-v1";
 var clone3 = (value) => JSON.parse(JSON.stringify(value));
 var state = () => {
@@ -2272,7 +2751,7 @@ var MissionControlAgents = class extends View {
     this.timers = [];
     this.jobs = [];
     this.names = null;
-    this.telemetry = new TelemetryBridge(MOD, herdr2);
+    this.telemetry = new TelemetryBridge(MOD2, herdr2);
     this.ownership = new NameOwnership(this.telemetry.io);
     this.inputs = [];
     if (this.role === "source-form") {
@@ -2310,6 +2789,7 @@ var MissionControlAgents = class extends View {
     }));
     this.search.set_value(state().query);
     this.inputs.push(this.search);
+    this.cloud = new CloudRail(herdr2, { spawn: (cx2, work) => this.spawn(cx2, work) });
     this.busy = true;
     this.spawn(cx, async () => {
       try {
@@ -2325,9 +2805,13 @@ var MissionControlAgents = class extends View {
     });
     this.timers.push(cx.timer.every(3e4, (cx2) => this.refresh(cx2)));
     this.timers.push(cx.timer.every(2e3, (cx2) => this.pollSources(cx2)));
+    this.cloud.sync(cx);
+    this.timers.push(cx.timer.every(3e4, (cx2) => {
+      if (!state().collapsed) this.cloud.tick(cx2);
+    }));
   }
   input(value, placeholder) {
-    const input = InputState2.new({ placeholder });
+    const input = InputState3.new({ placeholder });
     input.set_value(value);
     input.on("change", (_e, cx) => cx.notify());
     this.inputs.push(input);
@@ -2386,20 +2870,20 @@ var MissionControlAgents = class extends View {
     return buildAgentModel({ agents: herdr2.agents(), terminals: herdr2.terminals(), spaces: herdr2.spaces() }).rows.filter((r) => !r.native);
   }
   openSources() {
-    herdr2.openOverlay({ mod: MOD, kind: "dialog", width: 720, height: 660, props: { view: "sources" } });
+    herdr2.openOverlay({ mod: MOD2, kind: "dialog", width: 720, height: 660, props: { view: "sources" } });
   }
   openForm(id, source, { fresh = false } = {}) {
-    herdr2.openOverlay({ mod: MOD, kind: "dialog", width: 720, height: 660, props: { view: "source-form", sourceId: fresh ? "custom-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) : id, source: clone3(source), fresh } });
+    herdr2.openOverlay({ mod: MOD2, kind: "dialog", width: 720, height: 660, props: { view: "source-form", sourceId: fresh ? "custom-" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2) : id, source: clone3(source), fresh } });
   }
   closeOverlay() {
     if (this.props.overlay) herdr2.closeOverlay(this.props.overlay);
   }
   field(id, title, input) {
     const t = colors();
-    return v_flex2().gap(5).child(label(title, { muted: true, size: 11 })).child(Input2.new(input).id(id).h(31).px(8).bg(t.chrome).border(1).border_color(t.border).rounded(5).text_size(12).text_color(t.foreground));
+    return v_flex3().gap(5).child(label(title, { muted: true, size: 11 })).child(Input3.new(input).id(id).h(31).px(8).bg(t.chrome).border(1).border_color(t.border).rounded(5).text_size(12).text_color(t.foreground));
   }
   sourceHeader(title) {
-    return h_flex2().gap(8).items_center().child(label(title, { size: 15 })).child(div2().flex_1()).child(iconButton(MOD, "close-source-settings", "close", "Close", () => this.closeOverlay()));
+    return h_flex3().gap(8).items_center().child(label(title, { size: 15 })).child(div3().flex_1()).child(iconButton(MOD2, "close-source-settings", "close", "Close", () => this.closeOverlay()));
   }
   toggleSource(id, source, cx) {
     if (this.busy) return;
@@ -2417,15 +2901,15 @@ var MissionControlAgents = class extends View {
   }
   sourceList() {
     const t = colors(), sources = [...this.telemetry.sources.sources].map(([id, source]) => ({ id, ...source }));
-    return v_flex2().id("usage-sources").size_full().p(18).gap(12).bg(t.surface).text_size(12).child(this.sourceHeader("Usage sources")).child(div2().text_size(11).text_color(t.muted).child("Read-only session metadata on each machine. Paths are shown below.")).child(v_flex2().flex_1().min_h(0).overflow_y_scrollbar().gap(8).children(sources.map((source) => v_flex2().id("source-" + source.id).p(10).gap(6).border(1).border_color(t.border).rounded(6).child(h_flex2().gap(8).items_center().child(label(providerName(source.provider))).child(label(source.machine || "This Mac", { muted: true, size: 10 })).child(div2().flex_1()).child(textButton("source-toggle-" + source.id, source.enabled ? "Enabled" : "Disabled", (_e, cx) => this.toggleSource(source.id, source, cx), { disabled: this.busy })).child(iconButton(MOD, "source-edit-" + source.id, "settings", "Edit source", () => this.openForm(source.id, source))).child(iconButton(MOD, "source-copy-" + source.id, "plus", "Add profile on this machine", () => this.openForm(source.id, source, { fresh: true })))).child(label("Profile: " + source.credentialScope, { muted: true, size: 10 })).children([...source.roots, ...source.cacheRoots || []].map((root) => div2().text_size(10).text_color(t.dim).truncate().tooltip(root).child(root))))).when(!sources.length, (e) => e.child(div2().p(12).text_color(t.muted).child(this.loading ? "Discovering metadata sources…" : "No supported metadata sources were found on the connected machines."))).children([...this.telemetry.sourceErrors].map(([machine2, message]) => div2().text_color(t.muted).child((JSON.parse(machine2) || "This Mac") + ": " + message)))).when(Boolean(this.error), (e) => e.child(div2().text_size(11).text_color(t.blocked).child(this.error))).child(div2().text_size(10).text_color(t.dim).child("Changing or disabling a source clears its readings until that session is identified again."));
+    return v_flex3().id("usage-sources").size_full().p(18).gap(12).bg(t.surface).text_size(12).child(this.sourceHeader("Usage sources")).child(div3().text_size(11).text_color(t.muted).child("Read-only session metadata on each machine. Paths are shown below.")).child(v_flex3().flex_1().min_h(0).overflow_y_scrollbar().gap(8).children(sources.map((source) => v_flex3().id("source-" + source.id).p(10).gap(6).border(1).border_color(t.border).rounded(6).child(h_flex3().gap(8).items_center().child(label(providerName(source.provider))).child(label(source.machine || "This Mac", { muted: true, size: 10 })).child(div3().flex_1()).child(textButton("source-toggle-" + source.id, source.enabled ? "Enabled" : "Disabled", (_e, cx) => this.toggleSource(source.id, source, cx), { disabled: this.busy })).child(iconButton(MOD2, "source-edit-" + source.id, "settings", "Edit source", () => this.openForm(source.id, source))).child(iconButton(MOD2, "source-copy-" + source.id, "plus", "Add profile on this machine", () => this.openForm(source.id, source, { fresh: true })))).child(label("Profile: " + source.credentialScope, { muted: true, size: 10 })).children([...source.roots, ...source.cacheRoots || []].map((root) => div3().text_size(10).text_color(t.dim).truncate().tooltip(root).child(root))))).when(!sources.length, (e) => e.child(div3().p(12).text_color(t.muted).child(this.loading ? "Discovering metadata sources…" : "No supported metadata sources were found on the connected machines."))).children([...this.telemetry.sourceErrors].map(([machine2, message]) => div3().text_color(t.muted).child((JSON.parse(machine2) || "This Mac") + ": " + message)))).when(Boolean(this.error), (e) => e.child(div3().text_size(11).text_color(t.blocked).child(this.error))).child(div3().text_size(10).text_color(t.dim).child("Changing or disabling a source clears its readings until that session is identified again."));
   }
   pathRows(title, kind, inputs) {
     const t = colors();
-    return v_flex2().gap(6).child(h_flex2().gap(8).items_center().child(label(title, { muted: true, size: 11 })).child(div2().flex_1()).child(iconButton(MOD, "add-" + kind, "plus", "Add " + title.toLowerCase(), (_e, cx) => {
+    return v_flex3().gap(6).child(h_flex3().gap(8).items_center().child(label(title, { muted: true, size: 11 })).child(div3().flex_1()).child(iconButton(MOD2, "add-" + kind, "plus", "Add " + title.toLowerCase(), (_e, cx) => {
       if (inputs.length >= (kind === "cache" ? 4 : 8)) return;
       inputs.push(this.input("", "Absolute metadata directory"));
       cx.notify();
-    }))).children(inputs.map((input, index2) => h_flex2().gap(6).items_center().child(div2().flex_1().child(Input2.new(input).id(kind + "-" + index2).h(31).px(8).border(1).border_color(t.border).rounded(5).bg(t.chrome).text_size(11).text_color(t.foreground))).child(iconButton(MOD, "remove-" + kind + "-" + index2, "close", "Remove path", (_e, cx) => {
+    }))).children(inputs.map((input, index2) => h_flex3().gap(6).items_center().child(div3().flex_1().child(Input3.new(input).id(kind + "-" + index2).h(31).px(8).border(1).border_color(t.border).rounded(5).bg(t.chrome).text_size(11).text_color(t.foreground))).child(iconButton(MOD2, "remove-" + kind + "-" + index2, "close", "Remove path", (_e, cx) => {
       inputs.splice(index2, 1);
       this.inputs = this.inputs.filter((value) => value !== input);
       input.release();
@@ -2450,34 +2934,37 @@ var MissionControlAgents = class extends View {
   }
   sourceForm() {
     const t = colors();
-    return v_flex2().id("usage-source-form").size_full().p(18).gap(12).bg(t.surface).text_size(12).child(this.sourceHeader(this.props.fresh ? "Add metadata profile" : "Edit usage source")).child(label(providerName(this.form.provider) + " · " + (this.form.machine || "This Mac"), { muted: true, size: 11 })).child(v_flex2().flex_1().min_h(0).overflow_y_scrollbar().gap(13).child(this.field("source-profile", "Profile name", this.profile)).child(this.field("source-provider-root", "Provider root", this.providerRoot)).child(this.pathRows("Session roots", "roots", this.rootInputs)).child(this.pathRows("Sanitized cache roots (optional)", "cache", this.cacheInputs))).when(Boolean(this.error), (e) => e.child(div2().text_size(11).text_color(t.blocked).child(this.error))).child(textButton("save-usage-source", this.busy ? "Saving…" : "Save source", (_e, cx) => this.saveSource(cx), { primary: true, disabled: this.busy }));
+    return v_flex3().id("usage-source-form").size_full().p(18).gap(12).bg(t.surface).text_size(12).child(this.sourceHeader(this.props.fresh ? "Add metadata profile" : "Edit usage source")).child(label(providerName(this.form.provider) + " · " + (this.form.machine || "This Mac"), { muted: true, size: 11 })).child(v_flex3().flex_1().min_h(0).overflow_y_scrollbar().gap(13).child(this.field("source-profile", "Profile name", this.profile)).child(this.field("source-provider-root", "Provider root", this.providerRoot)).child(this.pathRows("Session roots", "roots", this.rootInputs)).child(this.pathRows("Sanitized cache roots (optional)", "cache", this.cacheInputs))).when(Boolean(this.error), (e) => e.child(div3().text_size(11).text_color(t.blocked).child(this.error))).child(textButton("save-usage-source", this.busy ? "Saving…" : "Save source", (_e, cx) => this.saveSource(cx), { primary: true, disabled: this.busy }));
   }
   reading(labelText, value) {
-    const t = colors(), known = (value.state === "available" || value.state === "stale") && Number.isFinite(value.percent), stale = value.state === "stale", text6 = known ? (value.estimated ? "~" : "") + Math.round(value.percent) + "%" : stale ? "Stale" : "Unavailable";
-    return h_flex2().flex_1().min_w(0).gap(4).items_center().text_size(9).tooltip(value.scope || value.reason).child(div2().text_color(t.dim).child(labelText)).child(div2().truncate().text_color(known && !stale && value.percent < 15 ? t.blocked : known && stale ? t.dim : t.muted).child(text6));
+    const t = colors(), known = (value.state === "available" || value.state === "stale") && Number.isFinite(value.percent), stale = value.state === "stale", text7 = known ? (value.estimated ? "~" : "") + Math.round(value.percent) + "%" : stale ? "Stale" : "Unavailable";
+    return h_flex3().flex_1().min_w(0).gap(4).items_center().text_size(9).tooltip(value.scope || value.reason).child(div3().text_color(t.dim).child(labelText)).child(div3().truncate().text_color(known && !stale && value.percent < 15 ? t.blocked : known && stale ? t.dim : t.muted).child(text7));
   }
   row(row) {
     const t = colors(), active = row.focused || herdr2.focused()?.agent === row.address;
-    let element = v_flex2().id("agent-" + row.address).pl(7 + Math.min(row.depth, 4) * 10).pr(7).py(6).gap(3).rounded(5).bg(active ? t.selected : "#00000000").tooltip(row.title + " · " + row.spaceName + " · " + (row.machine || "This Mac")).role("button").accessibility_label(row.title);
+    let element = v_flex3().id("agent-" + row.address).pl(7 + Math.min(row.depth, 4) * 10).pr(7).py(6).gap(3).rounded(5).bg(active ? t.selected : "#00000000").tooltip(row.title + " · " + row.spaceName + " · " + (row.machine || "This Mac")).role("button").accessibility_label(row.title);
     if (row.focus) element = element.cursor_pointer().hover((s) => s.bg(t.hover)).on_click(() => herdr2.run(row.focus.command, row.focus.args));
-    return element.child(h_flex2().h(17).gap(7).items_center().child(toolIcon(MOD, row.program, 15)).child(div2().flex_1().min_w(0).truncate().text_color(t.foreground).child(row.title)).child(statusDot(row.status))).child(h_flex2().h(13).gap(7).items_center().child(div2().w(15)).child(div2().flex_1().min_w(0).text_size(9).text_color(t.dim).truncate().child(row.spaceName + (row.machine ? " · " + row.machine : "")))).child(h_flex2().h(14).gap(8).items_center().child(this.reading(row.depth ? "Ctx" : "Context", row.context)).child(this.reading("Quota", row.quota)));
+    return element.child(h_flex3().h(17).gap(7).items_center().child(toolIcon(MOD2, row.program, 15)).child(div3().flex_1().min_w(0).truncate().text_color(t.foreground).child(row.title)).child(statusDot(row.status))).child(h_flex3().h(13).gap(7).items_center().child(div3().w(15)).child(div3().flex_1().min_w(0).text_size(9).text_color(t.dim).truncate().child(row.spaceName + (row.machine ? " · " + row.machine : "")))).child(h_flex3().h(14).gap(8).items_center().child(this.reading(row.depth ? "Ctx" : "Context", row.context)).child(this.reading("Quota", row.quota)));
   }
   render(cx) {
-    if (this.role === "unavailable") return v_flex2().size_full().p(18).gap(12).bg(colors().surface).child(this.sourceHeader("Usage source unavailable")).child(label(this.error, { muted: true }));
+    if (this.role === "unavailable") return v_flex3().size_full().p(18).gap(12).bg(colors().surface).child(this.sourceHeader("Usage source unavailable")).child(label(this.error, { muted: true }));
     if (this.role === "sources") return this.sourceList();
     if (this.role === "source-form") return this.sourceForm();
     const t = colors(), s = state(), model = this.model();
     herdr2.setAgentOrder(model.navigation);
-    return v_flex2().id("agents-list").size_full().min_h(0).bg(t.chrome).text_size(12).child(sectionHeader(MOD, "agents", "Agents", model.count, { collapsed: s.collapsed, toggle: () => edit((s2) => {
+    this.cloud.sync(cx);
+    const cloud = s.collapsed ? null : this.cloud.render();
+    return v_flex3().id("agents-list").size_full().min_h(0).bg(t.chrome).text_size(12).child(sectionHeader(MOD2, "agents", "Agents", model.count, { collapsed: s.collapsed, toggle: () => edit((s2) => {
       s2.collapsed = !s2.collapsed;
-    }), actions: [iconButton(MOD, "agents-priority", "priority", "Priority", () => edit((s2) => {
+    }), actions: [iconButton(MOD2, "agents-priority", "priority", "Priority", () => edit((s2) => {
       s2.mode = "priority";
-    }), { active: s.mode === "priority", size: 24 }), iconButton(MOD, "agents-spaces", "spaces", "Group by space", () => edit((s2) => {
+    }), { active: s.mode === "priority", size: 24 }), iconButton(MOD2, "agents-spaces", "spaces", "Group by space", () => edit((s2) => {
       s2.mode = "spaces";
-    }), { active: s.mode === "spaces", size: 24 }), iconButton(MOD, "agents-sources", "settings", "Usage sources", () => this.openSources(), { size: 24 })] })).when(!s.collapsed, (e) => e.child(div2().px(10).pb(6).child(searchInput(MOD, "agent-search", this.search))).child(v_flex2().id("agent-groups").flex_1().min_h(0).px(7).pb(7).gap(5).overflow_y_scrollbar().children(model.groups.map((group) => v_flex2().gap(1).child(h_flex2().h(23).px(4).gap(6).items_center().child(label(group.label, { muted: true, size: 10 })).when(Boolean(group.machine), (e2) => e2.child(label(group.machine, { muted: true, size: 9 })))).children(group.rows.map((row) => this.row(row)))))).when(!model.rows.length, (e2) => e2.child(div2().p(12).text_size(11).text_color(t.dim).child(model.count ? "No matching agents." : "No agents running."))));
+    }), { active: s.mode === "spaces", size: 24 }), iconButton(MOD2, "agents-cloud-add", "cloud", "Follow a cloud session", (_e, cx2) => this.cloud.toggleAdd(cx2), { active: this.cloud.adding, size: 24 }), iconButton(MOD2, "agents-sources", "settings", "Usage sources", () => this.openSources(), { size: 24 })] })).when(!s.collapsed, (e) => e.child(div3().px(10).pb(6).child(searchInput(MOD2, "agent-search", this.search))).child(v_flex3().id("agent-groups").flex_1().min_h(0).px(7).pb(7).gap(5).overflow_y_scrollbar().children(model.groups.map((group) => v_flex3().gap(1).child(h_flex3().h(23).px(4).gap(6).items_center().child(label(group.label, { muted: true, size: 10 })).when(Boolean(group.machine), (e2) => e2.child(label(group.machine, { muted: true, size: 9 })))).children(group.rows.map((row) => this.row(row))))).when(Boolean(cloud), (e2) => e2.child(cloud))).when(!model.rows.length && !cloud, (e2) => e2.child(div3().p(12).text_size(11).text_color(t.dim).child(model.count ? "No matching agents." : "No agents running."))));
   }
   close() {
     this.closed = true;
+    this.cloud?.close();
     for (const timer of this.timers) timer?.cancel?.();
     for (const job of this.jobs) job?.cancel?.();
     this.telemetry.close();

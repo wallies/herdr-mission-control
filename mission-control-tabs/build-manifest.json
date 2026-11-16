@@ -27,7 +27,7 @@
     "NOTICE.md": "253ba14d05906a477feb0b83c59936afac9ab50033e2131c8c98577adb3ac9ff"
   },
   "sources": {
-    "src/assets/icons.json": "36892381fd91e665a92096473806bf56f55d6f4e86227ab586987be7e10d9bb8",
+    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
     "src/mods/mission-control-tabs/main.js": "3ee55c2db82082c35d163345116015faf7998630f941b31ff7416c3bff1aa095",
     "src/mods/mission-control-tabs/mod.json": "18475d345cf6540b7b9a074856b5374263005133181daa26d160dc730830b188",
     "src/mods/mission-control-tabs/navigation.js": "3f328b84c25f9ac4de9e7ff04a0d5e0180d015b6c0beb12ccf762e88ff3656ad",
