@@ -18,7 +18,10 @@ const sameRepo=(a,b)=>a?.machine===b?.machine&&a?.repoRoot===b?.repoRoot;
 function uiState(){const s=herdr.shared(STATE);return {all:s?.v===1&&s.all===true,query:typeof s?.query==='string'&&s.query.length<=512?s.query:'',status:UI_STATES.includes(s?.status)?s.status:'all'};}
 const snapshotStore={read:()=>herdr.shared(SNAPSHOT_STATE),write:value=>herdr.setShared(SNAPSHOT_STATE,value)};
 
-export function shortcutLaunchSource(value){const issue=validateIssue(value);if(issue.identity.kind!=='shortcut')fail('INVALID_SCOPE','Select a Shortcut story.');return {kind:'shortcut',connectionId:issue.identity.connectionId,site:issue.identity.site,id:issue.identity.id,key:issue.key,title:issue.title,url:issue.url,body:issue.body};}
+/** The skill by name, never a slash command: whichever ship-tickets copy is installed answers. It reads the story itself. */
+export const shipTask=key=>`Use the ship-tickets skill to ship ${key}.`;
+/** The exact task replaces the generic issue prompt, so no story body reaches the agent. */
+export function shortcutLaunchSource(value){const issue=validateIssue(value);if(issue.identity.kind!=='shortcut')fail('INVALID_SCOPE','Select a Shortcut story.');return {kind:'shortcut',connectionId:issue.identity.connectionId,site:issue.identity.site,id:issue.identity.id,key:issue.key,title:issue.title,url:issue.url,task:shipTask(issue.key)};}
 
 /** Snapshot space/pane identity before the first await; never consult later active-space state. */
 async function captureRepository(binding,{all=false,resolved,originPane,isCurrent=()=>true,api=herdr}={}){
@@ -99,7 +102,7 @@ export default class MissionControlShortcut extends View{
   }
   refresh(cx){if(!this.closed&&this.role==='panel'){this.error=null;return this.spawn(cx,()=>this.data.refresh());}}
   launchReason(issue){
-    if(this.launching.has(issueIdentityKey(issue)))return 'Starting this story…';if(!this.all&&this.props.target?.repoRoot&&this.resolved?.state!=='resolved')return 'Open this repository in a space to start work.';const host=herdr.machines().find(m=>m.name===issue.repoBinding.machine);return host?.layout==='ready'?'':'The execution machine is offline or still connecting.';
+    if(this.launching.has(issueIdentityKey(issue)))return 'Shipping this story…';if(!this.all&&this.props.target?.repoRoot&&this.resolved?.state!=='resolved')return 'Open this repository in a space to start work.';const host=herdr.machines().find(m=>m.name===issue.repoBinding.machine);return host?.layout==='ready'?'':'The execution machine is offline or still connecting.';
   }
   startIssue(value,toolKey,cx,{options=false}={}){
     let issue;try{issue=validateIssue(value);shortcutLaunchSource(issue);}catch{this.error='This story is unavailable. Refresh Shortcut.';cx.notify();return;}
@@ -107,7 +110,7 @@ export default class MissionControlShortcut extends View{
     return this.spawn(cx,async()=>{
       try{const captured=await captureShortcutTarget(issue,{all,resolved,originPane,isCurrent:()=>!this.closed});if(this.closed)return;
         if(options)openLaunchDialog(MOD,herdr,{view:'launch',target:captured.target,...captured.target,source:captured.source,...(toolKey?{toolKey}:{})});
-        else{const result=await quickStart({target:captured.target,source:captured.source,toolKey},this.io);if(!result.ok)this.error=result.message;}
+        else{const result=await quickStart({target:captured.target,source:captured.source,toolKey,worktree:true},this.io);if(!result.ok)this.error=result.message;}
       }finally{this.launching.delete(key);}
     });
   }
@@ -184,7 +187,7 @@ export default class MissionControlShortcut extends View{
     const t=colors(),root=v_flex().id('shortcut-panel').size_full().min_h(0).bg(t.surface);
     if(!this.props.hideHeader)root.child(this.header('Shortcut'));
     if(this.error)root.child(div().id('shortcut-action-error').px(12).py(7).text_size(11).text_color(t.blocked).child(this.error));
-    return root.child(renderIssueBoard({id:'shortcut-board',mod:MOD,state:this.board,view:this.data.view(),columns:COLUMNS,manualRefresh:true,preferences:this.config?.preferences.launch||{},toolsForMachine:machine=>this.tools.get(machineKey(machine))||[],launchReason:issue=>this.launchReason(issue),onOpenIssue:(issue,eventCx)=>this.openIssue(issue,eventCx),onLaunch:(issue,key,eventCx)=>this.startIssue(issue,key,eventCx),onOptions:(issue,eventCx)=>this.startIssue(issue,undefined,eventCx,{options:true}),onRefresh:(_value,eventCx)=>this.refresh(eventCx),onSetup:(binding,eventCx)=>this.openSetup(binding,eventCx),onScopeChange:(all,eventCx)=>this.setScope(all,eventCx),onInvalid:(message,eventCx)=>{this.error=message;eventCx.notify();}},cx));
+    return root.child(renderIssueBoard({id:'shortcut-board',mod:MOD,state:this.board,view:this.data.view(),columns:COLUMNS,manualRefresh:true,actionVerb:'Ship',preferences:this.config?.preferences.launch||{},toolsForMachine:machine=>this.tools.get(machineKey(machine))||[],launchReason:issue=>this.launchReason(issue),onOpenIssue:(issue,eventCx)=>this.openIssue(issue,eventCx),onLaunch:(issue,key,eventCx)=>this.startIssue(issue,key,eventCx),onOptions:(issue,eventCx)=>this.startIssue(issue,undefined,eventCx,{options:true}),onRefresh:(_value,eventCx)=>this.refresh(eventCx),onSetup:(binding,eventCx)=>this.openSetup(binding,eventCx),onScopeChange:(all,eventCx)=>this.setScope(all,eventCx),onInvalid:(message,eventCx)=>{this.error=message;eventCx.notify();}},cx));
   }
   close(){if(this.closed)return;this.closed=true;this.contextEpoch++;this.data?.close();this.board?.close();this.dialog?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.commandTask?.cancel?.();for(const input of this.inputs)input.release();}
 }

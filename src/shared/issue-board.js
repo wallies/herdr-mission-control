@@ -38,9 +38,9 @@ function issueLink(id,value,issue,callback,onInvalid,{title=false,linkValid=vali
   if(valid)el=el.cursor_pointer().hover(s=>s.text_color(t.accent)).on_mouse_down('left',(_e,cx)=>cx.stop_propagation()).on_click(capturedAction(issue,callback,onInvalid));
   return el.child(value);
 }
-function programButton(mod,id,issue,program,callback,onInvalid,reason,linkValid){
-  const t=colors(),enabled=linkValid&&typeof callback==='function'&&!reason;
-  let el=div().id(id).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason||'Start '+issue.key+' with '+(program.name||program.key)).accessibility_label('Start '+issue.key+' with '+(program.name||program.key)).role('button').opacity(enabled?1:0.45);
+function programButton(mod,id,issue,program,callback,onInvalid,reason,linkValid,verb='Start'){
+  const t=colors(),enabled=linkValid&&typeof callback==='function'&&!reason,action=verb+' '+issue.key+' with '+(program.name||program.key);
+  let el=div().id(id).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason||action).accessibility_label(action).role('button').opacity(enabled?1:0.45);
   if(enabled)el=el.cursor_pointer().hover(s=>s.bg(t.selected)).on_mouse_down('left',(_e,cx)=>cx.stop_propagation()).on_click(capturedAction(issue,(captured,cx)=>callback(captured,program.key,cx),onInvalid));
   return el.child(toolIcon(mod,program,15));
 }
@@ -55,7 +55,7 @@ function card(props,issue,choices,narrow){
       .when(Boolean(issue.priority),el=>el.child(div().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority))))
     .child(issueLink(id+'-title',issue.title,issue,onOpenIssue,onInvalid,{title:true,linkValid}))
     .child(h_flex().gap(5).items_center().child(div().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid?caption:'Issue unavailable'))
-      .child(h_flex().gap(2).items_center().children(choices.quick.map(program=>programButton(mod,id+'-start-'+program.key,issue,program,onLaunch,onInvalid,reason,linkValid)))
+      .child(h_flex().gap(2).items_center().children(choices.quick.map(program=>programButton(mod,id+'-start-'+program.key,issue,program,onLaunch,onInvalid,reason,linkValid,props.actionVerb)))
         .child(iconButton(mod,id+'-options','more',reason||(choices.overflow.length?'Choose another agent or launch options':'Launch options'),capturedAction(issue,(captured,cx)=>onOptions(captured,cx),onInvalid),{disabled:!optionsEnabled,size:25}))));
 }
 function statusFilter(id,title,count,active,action,{disabled=false}={}){

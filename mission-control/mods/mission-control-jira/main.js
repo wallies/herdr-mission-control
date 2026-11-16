@@ -1844,11 +1844,11 @@ function searchInput(mod, id2, state) {
 function openLaunchDialog(mod, herdr2, { spaceId, machine: machine3 = null, source, target, toolKey, view = "launch" } = {}) {
   return herdr2.openOverlay({ mod, kind: "dialog", width: 560, height: 660, props: { view, spaceId, machine: machine3, source, target, toolKey } });
 }
-async function quickStart({ target, source, toolKey }, io) {
+async function quickStart({ target, source, toolKey, worktree }, io) {
   try {
     const config = (await readConfig(io)).value, p = validateLaunchPreferences(config.preferences.launch), tools = await io.knownAgents({ on: target.machine });
     if (!toolChoices(tools, p).quick.some((t) => t.key === toolKey)) return { ok: false, code: "SHORTCUT_UNAVAILABLE", message: "This shortcut is no longer pinned and installed on the destination machine." };
-    return launch({ ...newIntent(), ...target, toolKey, source, worktree: p.worktree, ...p.tools[toolKey] || {} }, io);
+    return launch({ ...newIntent(), ...target, toolKey, source, worktree: worktree ?? p.worktree, ...p.tools[toolKey] || {} }, io);
   } catch (e) {
     return { ok: false, code: e.code || "LAUNCH_SETTINGS", message: e.code ? e.message : "Agent shortcuts could not be loaded." };
   }
@@ -2193,9 +2193,9 @@ function issueLink(id2, value, issue, callback, onInvalid, { title = false, link
   if (valid) el = el.cursor_pointer().hover((s) => s.text_color(t.accent)).on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click(capturedAction(issue, callback, onInvalid));
   return el.child(value);
 }
-function programButton(mod, id2, issue, program, callback, onInvalid, reason, linkValid) {
-  const t = colors(), enabled = linkValid && typeof callback === "function" && !reason;
-  let el = div3().id(id2).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason || "Start " + issue.key + " with " + (program.name || program.key)).accessibility_label("Start " + issue.key + " with " + (program.name || program.key)).role("button").opacity(enabled ? 1 : 0.45);
+function programButton(mod, id2, issue, program, callback, onInvalid, reason, linkValid, verb = "Start") {
+  const t = colors(), enabled = linkValid && typeof callback === "function" && !reason, action = verb + " " + issue.key + " with " + (program.name || program.key);
+  let el = div3().id(id2).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason || action).accessibility_label(action).role("button").opacity(enabled ? 1 : 0.45);
   if (enabled) el = el.cursor_pointer().hover((s) => s.bg(t.selected)).on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click(capturedAction(issue, (captured, cx) => callback(captured, program.key, cx), onInvalid));
   return el.child(toolIcon(mod, program, 15));
 }
@@ -2208,7 +2208,7 @@ function card(props2, issue, choices, narrow) {
   const optionsEnabled = linkValid && typeof onOptions === "function" && !reason;
   const context = [issue.statusName, issue.identity.connectionId, issue.identity.site, issue.repoBinding.repoRoot, issue.repoBinding.machine || "This Mac"].join(" · ");
   const caption = all ? props2.bindingLabel?.(issue.repoBinding) || repoCaption(issue) : issue.statusName;
-  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 }))));
+  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid, props2.actionVerb))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 }))));
 }
 function statusFilter(id2, title, count, active, action, { disabled = false } = {}) {
   const t = colors();

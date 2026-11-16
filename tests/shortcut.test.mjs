@@ -124,7 +124,7 @@ test('the bridge stores fresh snapshots, adopts newer ones and releases an aband
 
 test('cards launch as Shortcut sources',()=>{
   const b={machine:null,repoRoot:'/repo',shortcut:{connectionId:'shortcut',owner:'cparry',workspace:'acme'}};
-  assert.deepEqual(shortcutLaunchSource(story(b,4,'todo')),{kind:'shortcut',connectionId:'shortcut',site:SITE,id:'4',key:'sc-4',title:'Story 4',url:SITE+'/acme/story/4',body:''});
+  assert.deepEqual(shortcutLaunchSource(story(b,4,'todo')),{kind:'shortcut',connectionId:'shortcut',site:SITE,id:'4',key:'sc-4',title:'Story 4',url:SITE+'/acme/story/4',task:'Use the ship-tickets skill to ship sc-4.'});
 });
 
 test('a second refresh during a read waits for that same read instead of returning early',async()=>{

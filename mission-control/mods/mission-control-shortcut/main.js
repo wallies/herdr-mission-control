@@ -1835,11 +1835,11 @@ function searchInput(mod, id2, state) {
 function openLaunchDialog(mod, herdr2, { spaceId, machine: machine3 = null, source, target, toolKey, view = "launch" } = {}) {
   return herdr2.openOverlay({ mod, kind: "dialog", width: 560, height: 660, props: { view, spaceId, machine: machine3, source, target, toolKey } });
 }
-async function quickStart({ target, source, toolKey }, io) {
+async function quickStart({ target, source, toolKey, worktree }, io) {
   try {
     const config = (await readConfig(io)).value, p = validateLaunchPreferences(config.preferences.launch), tools = await io.knownAgents({ on: target.machine });
     if (!toolChoices(tools, p).quick.some((t) => t.key === toolKey)) return { ok: false, code: "SHORTCUT_UNAVAILABLE", message: "This shortcut is no longer pinned and installed on the destination machine." };
-    return launch({ ...newIntent(), ...target, toolKey, source, worktree: p.worktree, ...p.tools[toolKey] || {} }, io);
+    return launch({ ...newIntent(), ...target, toolKey, source, worktree: worktree ?? p.worktree, ...p.tools[toolKey] || {} }, io);
   } catch (e) {
     return { ok: false, code: e.code || "LAUNCH_SETTINGS", message: e.code ? e.message : "Agent shortcuts could not be loaded." };
   }
@@ -2184,9 +2184,9 @@ function issueLink(id2, value, issue, callback, onInvalid, { title = false, link
   if (valid) el = el.cursor_pointer().hover((s) => s.text_color(t.accent)).on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click(capturedAction(issue, callback, onInvalid));
   return el.child(value);
 }
-function programButton(mod, id2, issue, program, callback, onInvalid, reason, linkValid) {
-  const t = colors(), enabled = linkValid && typeof callback === "function" && !reason;
-  let el = div3().id(id2).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason || "Start " + issue.key + " with " + (program.name || program.key)).accessibility_label("Start " + issue.key + " with " + (program.name || program.key)).role("button").opacity(enabled ? 1 : 0.45);
+function programButton(mod, id2, issue, program, callback, onInvalid, reason, linkValid, verb = "Start") {
+  const t = colors(), enabled = linkValid && typeof callback === "function" && !reason, action = verb + " " + issue.key + " with " + (program.name || program.key);
+  let el = div3().id(id2).size(25).flex_none().flex().items_center().justify_center().rounded(4).tooltip(reason || action).accessibility_label(action).role("button").opacity(enabled ? 1 : 0.45);
   if (enabled) el = el.cursor_pointer().hover((s) => s.bg(t.selected)).on_mouse_down("left", (_e, cx) => cx.stop_propagation()).on_click(capturedAction(issue, (captured, cx) => callback(captured, program.key, cx), onInvalid));
   return el.child(toolIcon(mod, program, 15));
 }
@@ -2199,7 +2199,7 @@ function card(props2, issue, choices, narrow) {
   const optionsEnabled = linkValid && typeof onOptions === "function" && !reason;
   const context = [issue.statusName, issue.identity.connectionId, issue.identity.site, issue.repoBinding.repoRoot, issue.repoBinding.machine || "This Mac"].join(" · ");
   const caption = all ? props2.bindingLabel?.(issue.repoBinding) || repoCaption(issue) : issue.statusName;
-  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 }))));
+  return v_flex3().id(id2).w_full().min_w(0).max_w(narrow ? 460 : 360).p(10).gap(7).rounded(6).bg(t.chrome).border(1).border_color(t.border).opacity(linkValid ? 1 : 0.6).tooltip(context).child(h_flex3().gap(8).items_center().child(issueLink(id2 + "-key", issue.key, issue, onOpenIssue, onInvalid, { linkValid })).child(div3().flex_1()).when(Boolean(issue.priority), (el) => el.child(div3().max_w(90).truncate().text_size(10).text_color(t.muted).tooltip(issue.priority).child(issue.priority)))).child(issueLink(id2 + "-title", issue.title, issue, onOpenIssue, onInvalid, { title: true, linkValid })).child(h_flex3().gap(5).items_center().child(div3().flex_1().min_w(0).text_size(10).text_color(t.dim).truncate().tooltip(context).child(linkValid ? caption : "Issue unavailable")).child(h_flex3().gap(2).items_center().children(choices.quick.map((program) => programButton(mod, id2 + "-start-" + program.key, issue, program, onLaunch, onInvalid, reason, linkValid, props2.actionVerb))).child(iconButton(mod, id2 + "-options", "more", reason || (choices.overflow.length ? "Choose another agent or launch options" : "Launch options"), capturedAction(issue, (captured, cx) => onOptions(captured, cx), onInvalid), { disabled: !optionsEnabled, size: 25 }))));
 }
 function statusFilter(id2, title, count, active, action, { disabled = false } = {}) {
   const t = colors();
@@ -2634,10 +2634,11 @@ function uiState() {
   return { all: s?.v === 1 && s.all === true, query: typeof s?.query === "string" && s.query.length <= 512 ? s.query : "", status: UI_STATES.includes(s?.status) ? s.status : "all" };
 }
 var snapshotStore = { read: () => herdr.shared(SNAPSHOT_STATE), write: (value) => herdr.setShared(SNAPSHOT_STATE, value) };
+var shipTask = (key3) => `Use the ship-tickets skill to ship ${key3}.`;
 function shortcutLaunchSource(value) {
   const issue = validateIssue(value);
   if (issue.identity.kind !== "shortcut") fail11("INVALID_SCOPE", "Select a Shortcut story.");
-  return { kind: "shortcut", connectionId: issue.identity.connectionId, site: issue.identity.site, id: issue.identity.id, key: issue.key, title: issue.title, url: issue.url, body: issue.body };
+  return { kind: "shortcut", connectionId: issue.identity.connectionId, site: issue.identity.site, id: issue.identity.id, key: issue.key, title: issue.title, url: issue.url, task: shipTask(issue.key) };
 }
 async function captureRepository(binding, { all = false, resolved, originPane, isCurrent = () => true, api = herdr } = {}) {
   const world = copy5(api.spaces()), focus2 = api.focused(), panes2 = api.panes().map((p) => ({ ...p, focused: p.focused || p.pane === focus2?.pane }));
@@ -2845,7 +2846,7 @@ var MissionControlShortcut = class extends View {
     }
   }
   launchReason(issue) {
-    if (this.launching.has(issueIdentityKey(issue))) return "Starting this story…";
+    if (this.launching.has(issueIdentityKey(issue))) return "Shipping this story…";
     if (!this.all && this.props.target?.repoRoot && this.resolved?.state !== "resolved") return "Open this repository in a space to start work.";
     const host = herdr.machines().find((m) => m.name === issue.repoBinding.machine);
     return host?.layout === "ready" ? "" : "The execution machine is offline or still connecting.";
@@ -2872,7 +2873,7 @@ var MissionControlShortcut = class extends View {
         if (this.closed) return;
         if (options) openLaunchDialog(MOD, herdr, { view: "launch", target: captured.target, ...captured.target, source: captured.source, ...toolKey ? { toolKey } : {} });
         else {
-          const result = await quickStart({ target: captured.target, source: captured.source, toolKey }, this.io);
+          const result = await quickStart({ target: captured.target, source: captured.source, toolKey, worktree: true }, this.io);
           if (!result.ok) this.error = result.message;
         }
       } finally {
@@ -3057,7 +3058,7 @@ var MissionControlShortcut = class extends View {
     const t = colors(), root = v_flex4().id("shortcut-panel").size_full().min_h(0).bg(t.surface);
     if (!this.props.hideHeader) root.child(this.header("Shortcut"));
     if (this.error) root.child(div4().id("shortcut-action-error").px(12).py(7).text_size(11).text_color(t.blocked).child(this.error));
-    return root.child(renderIssueBoard({ id: "shortcut-board", mod: MOD, state: this.board, view: this.data.view(), columns: COLUMNS, manualRefresh: true, preferences: this.config?.preferences.launch || {}, toolsForMachine: (machine3) => this.tools.get(machineKey(machine3)) || [], launchReason: (issue) => this.launchReason(issue), onOpenIssue: (issue, eventCx) => this.openIssue(issue, eventCx), onLaunch: (issue, key3, eventCx) => this.startIssue(issue, key3, eventCx), onOptions: (issue, eventCx) => this.startIssue(issue, void 0, eventCx, { options: true }), onRefresh: (_value, eventCx) => this.refresh(eventCx), onSetup: (binding, eventCx) => this.openSetup(binding, eventCx), onScopeChange: (all, eventCx) => this.setScope(all, eventCx), onInvalid: (message, eventCx) => {
+    return root.child(renderIssueBoard({ id: "shortcut-board", mod: MOD, state: this.board, view: this.data.view(), columns: COLUMNS, manualRefresh: true, actionVerb: "Ship", preferences: this.config?.preferences.launch || {}, toolsForMachine: (machine3) => this.tools.get(machineKey(machine3)) || [], launchReason: (issue) => this.launchReason(issue), onOpenIssue: (issue, eventCx) => this.openIssue(issue, eventCx), onLaunch: (issue, key3, eventCx) => this.startIssue(issue, key3, eventCx), onOptions: (issue, eventCx) => this.startIssue(issue, void 0, eventCx, { options: true }), onRefresh: (_value, eventCx) => this.refresh(eventCx), onSetup: (binding, eventCx) => this.openSetup(binding, eventCx), onScopeChange: (all, eventCx) => this.setScope(all, eventCx), onInvalid: (message, eventCx) => {
       this.error = message;
       eventCx.notify();
     } }, cx));
@@ -3078,5 +3079,6 @@ var MissionControlShortcut = class extends View {
 export {
   captureShortcutTarget,
   MissionControlShortcut as default,
+  shipTask,
   shortcutLaunchSource
 };

@@ -37,7 +37,7 @@
     "src/mods/mission-control-agent-menu/main.js": "a015aa335f43bd39b78800f134fa5010316d2ad0a792bc9156b9fa1a047d6a12",
     "src/mods/mission-control-agent-menu/mod.json": "577e100ca81956783494435794e18cbabaabf4d2daa926a9c4f9c38a5f1f61eb",
     "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",
-    "src/shared/launch-dialog.js": "af825d80f8d6c2a629bfe7f0e10568da53c0a28979248bc1aabf65ab41d9519f",
+    "src/shared/launch-dialog.js": "6ee2fc5bceeda8c2bb1c2141c678ae6fc1743e291b19108cf1e1874d90de47bc",
     "src/shared/launch-preferences.js": "c70132d68a264054de91a25704c44c7f6c6cb2e380c93f6807842bdca5558fd9",
     "src/shared/launch.js": "2d3dbcdafb24926b3c336716c0dcff315d27f82394eee15f92fd8a0376b5dfe9",
     "src/shared/name-ownership.js": "24f4e7060bffdb1559e76091039fc1b1e076095d72cc8b44c14596d8a37ae784",
