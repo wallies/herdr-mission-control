@@ -9,7 +9,7 @@ import {LaunchDialog,openLaunchDialog,quickStart} from '../../shared/launch-dial
 import {IssueBoardState,renderIssueBoard} from '../../shared/issue-board.js';
 import {GithubDataBridge,githubSetupModel,githubApiBase} from './data.js';
 import {validatePullRequest,pullIdentityKey,validatePRActionRequest,prActionAvailability,prReasonText,prLaunchSource} from './pull-model.js';
-import {PullBoardState,renderPullBoard,pullSlotKey} from './pulls-view.js';
+import {PullBoardState,renderPullBoard,pullSlotKey,pullActions} from './pulls-view.js';
 import {colors,label,icon,iconButton,textButton} from '../../shared/ui.js';
 
 const MOD='mission-control-github',STATE='mission-control-github-ui-v1',CONFIG_EVENT='mission-control-github-config-v1',DATA_EVENT='mission-control-github-data-v1',PREFS_EVENT='mission-control-github-prefs-v1';
@@ -17,7 +17,7 @@ const PULL_STATE='mission-control-github-prs-ui-v1',SLOT_EVENT='mission-control-
 const copy=value=>JSON.parse(JSON.stringify(value)),machineKey=machine=>JSON.stringify(machine);
 const fail=(code,message)=>{throw Object.assign(Error(message),{code});};
 const UI_STATES=['all','todo','inProgress','done'];
-const pullActionsTitle=action=>({review:'Review',addressComments:'Address comments',fixChecks:'Fix checks'})[action];
+const pullActionsTitle=action=>pullActions.find(([key])=>key===action)?.[1];
 function uiState(pulls=false){const s=herdr.shared(pulls?PULL_STATE:STATE),states=pulls?['all','open','draft','closed','merged']:UI_STATES;return {all:s?.v===1&&s.all===true,query:typeof s?.query==='string'&&s.query.length<=512?s.query:'',status:states.includes(s?.status)?s.status:'all'};}
 const sameRepo=(a,b)=>a?.machine===b?.machine&&a?.repoRoot===b?.repoRoot;
 

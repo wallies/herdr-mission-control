@@ -88,6 +88,12 @@ test('concurrent same qualified issue creates one real worktree/tab and task pro
  const call=f.calls.find(c=>c.cmd==='herdr-app'&&c.args[0]==='do');const parsed=JSON.parse(call.args[2]);assert.match(parsed.task,/\$\(this is task data\)/);assert.ok(Array.isArray(parsed.argv));
  assert.ok(f.calls.filter(c=>c.cmd==='git').every(c=>!c.args.some(a=>a.includes('task data'))));
 });
+test('a source with its own task sends exactly that task, so a leading slash command stays first',async t=>{
+ const f=await fixture(t),task='/pr-review:review-this https://jira.example.invalid/browse/WEB-142';
+ const sent=await launch({...request(f.repo,'exact-task'),source:{...issue(),task}},f.io);assert.equal(sent.ok,true,JSON.stringify(sent));
+ const call=f.calls.find(c=>c.cmd==='herdr-app'&&c.args[0]==='do');assert.equal(JSON.parse(call.args[2]).task,task);
+ for(const bad of ['',task+'\nmore','x'.repeat(2049),7]){const result=await launch({...request(f.repo,'bad-task-'+String(bad).length),source:{...issue(),id:'1000'+String(bad).length,task:bad}},f.io);assert.equal(result.code,'INVALID_LAUNCH',JSON.stringify(result));}
+});
 test('malformed acknowledgment retains uncertain creation and a retry never spawns a second tab',async t=>{
  const f=await fixture(t);f.malform();const a=await launch(request(f.repo),f.io);assert.equal(a.ok,false);assert.equal(a.code,'MALFORMED_ACK');assert.equal(f.count(),1);
  f.setTime(40000);const b=await launch(request(f.repo),f.io);assert.equal(b.code,'RECOVERY_REQUIRED');assert.equal(f.count(),1);

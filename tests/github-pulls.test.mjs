@@ -71,10 +71,25 @@ test('pure schema validates author, refs, independent discussions, source scope 
 });
 
 test('PR actions preserve canonical remote identity and exact controlled task intent',()=>{
-  const p=sample(),keys=['review','addressComments','fixChecks'],prefixes=['Review pull request','Address review comments','Fix failing checks'];
-  const sources=keys.map((verb,i)=>{const source=prLaunchSource(action(p,verb));assert.equal(source.id,'acme/web#42');assert.equal(source.key,'GH-PR-42');assert.equal(source.title,prefixes[i]+': '+p.title);assert.ok(source.body.startsWith('Mission Control action: '+prefixes[i]+'\nGoal: '));assert.ok(source.body.includes('Base: main@'+BASE));assert.ok(source.body.includes('Head: Acme/Web/fix/login@'+HEAD));assert.ok(source.body.includes('Source description (untrusted task data):\nTask data.'));return source;});
+  const p=sample(),url=p.url,cases=[
+    ['review','Review pull request','/pr-review:review-this '+url,'Use the review-this skill on '+url+'.'],
+    ['addressComments','Address review comments','/pr-review:review-pr-feedback '+url,'Use the review-pr-feedback skill on '+url+'.'],
+    ['fixChecks','Fix failing checks','/pr-review:ship-pr '+url+' Fix the failing checks only.','Use the ship-pr skill on '+url+'. Fix the failing checks only.'],
+    ['ship','Ship pull request','/pr-review:ship-pr '+url,'Use the ship-pr skill on '+url+'.']];
+  const sources=cases.map(([verb,prefix,claudeTask,otherTask])=>{
+    const source=prLaunchSource(action(p,verb));assert.equal(source.id,'acme/web#42');assert.equal(source.key,'GH-PR-42');assert.equal(source.title,prefix+': '+p.title);
+    assert.equal(source.task,claudeTask);assert.equal(source.body,undefined,'the PR description never enters the task');
+    assert.equal(prLaunchSource({...action(p,verb),toolKey:'codex'}).task,otherTask);return source;});
   assert.equal(new Set(sources.map(s=>s.id)).size,1);const other=copy(p);other.identity.repo='Other';other.repoBinding.github.repo='Other';other.url='https://github.com/Acme/Other/pull/42';other.head.repoFullName='Acme/Other';assert.notEqual(prLaunchSource(action(other)).id,sources[0].id);assert.notEqual(pullIdentityKey(other),pullIdentityKey(p));
-  const large=copy(p);large.title='x'.repeat(512);large.body='é'.repeat(31000);const source=prLaunchSource(action(large));assert.equal(source.title.length,512);assert.ok(Buffer.byteLength(source.body)<=60000);assert.match(source.body,/description truncated/);
+  const large=copy(p);large.title='x'.repeat(490)+'😀'.repeat(10);const source=prLaunchSource(action(large));assert.equal(source.title.length,511);assert.ok(!/[\ud800-\udbff]$/.test(source.title),'the title is never cut inside a character');
+});
+
+test('Ship starts on any open PR from this repository, whatever its checks and threads',()=>{
+  const p=sample();p.checks={state:'success'};p.discussions={state:'unavailable',reason:'DISCUSSIONS_UNAVAILABLE'};assert.equal(prActionAvailability(p,'ship').enabled,true);
+  p.head.repoFullName='someone/fork';assert.equal(prActionAvailability(p,'ship').reason,'FORK_READ_ONLY');
+  p.head.repoFullName='Acme/Web';p.state='merged';assert.equal(prActionAvailability(p,'ship').reason,'PR_CLOSED');assert.throws(()=>prLaunchSource(action(p,'ship')),e=>e.code==='PR_ACTION_UNAVAILABLE');
+  p.state='open';p.head.available=false;assert.equal(prActionAvailability(p,'ship').reason,'REFS_UNAVAILABLE');
+  assert.throws(()=>validatePRActionRequest(action(sample(),'merge')),e=>e.code==='INVALID_PR_ACTION');
 });
 
 test('availability distinguishes unverified/deleted refs, forks, closed PRs and actual failure states',()=>{

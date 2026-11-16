@@ -75,37 +75,42 @@ export function validatePullRequest(value,{scope}={}){
   return {...copy(value),repoBinding:binding};
 }
 export function pullIdentityKey(value){const p=validatePullRequest(value),i=p.identity;return stable([i.kind,i.connectionId,i.site,lower(i.owner),lower(i.repo),i.number,p.repoBinding.machine,p.repoBinding.repoRoot]);}
+export const PR_ACTIONS=['review','addressComments','fixChecks','ship'];
 export function validatePRActionRequest(value){
-  if(!exact(value,['action','pull','toolKey','requestId'],['checkoutRoot'])||!['review','addressComments','fixChecks'].includes(value.action)||!text(value.toolKey,256)||!text(value.requestId,256))fail('INVALID_PR_ACTION');
+  if(!exact(value,['action','pull','toolKey','requestId'],['checkoutRoot'])||!PR_ACTIONS.includes(value.action)||!text(value.toolKey,256)||!text(value.requestId,256))fail('INVALID_PR_ACTION');
   const pull=validatePullRequest(value.pull);let checkoutRoot;
   try{checkoutRoot=canonicalRepoPath(value.checkoutRoot??pull.repoBinding.repoRoot);if(value.checkoutRoot!==undefined&&checkoutRoot!==value.checkoutRoot)fail('INVALID_PR_ACTION');}catch{fail('INVALID_PR_ACTION');}
   return {...copy(value),pull,checkoutRoot};
 }
 export function prActionAvailability(value,action){
-  const p=validatePullRequest(value),disabled=reason=>({enabled:false,reason});if(!['review','addressComments','fixChecks'].includes(action))fail('INVALID_PR_ACTION');
+  const p=validatePullRequest(value),disabled=reason=>({enabled:false,reason});if(!PR_ACTIONS.includes(action))fail('INVALID_PR_ACTION');
   if(p.head.available===null||p.base.available===null){const loaded=[p.review,p.discussions,p.checks].some(value=>value.reason!=='NOT_LOADED');return disabled(loaded?'REFS_UNAVAILABLE':'NOT_LOADED');}
   if(!p.head.available||!p.base.available||p.head.repoFullName===null)return disabled('REFS_UNAVAILABLE');
   if(action==='review')return {enabled:true};
   if(p.state!=='open')return disabled('PR_CLOSED');
   if(lower(p.head.repoFullName)!==lower(p.identity.owner+'/'+p.identity.repo))return disabled('FORK_READ_ONLY');
+  if(action==='ship')return {enabled:true};
   if(action==='addressComments')return p.discussions.state==='actionable'?{enabled:true}:disabled(p.discussions.reason);
   return p.checks.state==='failure'?{enabled:true}:p.checks.state==='unavailable'?disabled(p.checks.reason):{enabled:false};
 }
 export function prDetailCursor(value){const p=validatePullRequest(value);return JSON.stringify({v:1,kind:'pr-detail',identity:p.identity,headSha:p.head.sha,baseSha:p.base.sha});}
-const actionText={
-  review:['Review pull request','Review the changes and report findings without posting a review.'],
-  addressComments:['Address review comments','Inspect unresolved review threads and implement the required local code fixes without replying to or resolving threads.'],
-  fixChecks:['Fix failing checks','Investigate the reported failing checks and implement local code fixes without changing check status.']
+// Each action runs a pr-review plugin skill, which reads the PR itself: no PR text enters the task.
+const actionSkills={
+  review:['Review pull request','pr-review:review-this',''],
+  addressComments:['Address review comments','pr-review:review-pr-feedback',''],
+  fixChecks:['Fix failing checks','pr-review:ship-pr',' Fix the failing checks only.'],
+  ship:['Ship pull request','pr-review:ship-pr','']
 };
 function clip(value,maxBytes,maxChars=Infinity){let result='',bytes=0;for(const c of value){const size=utf8Bytes(c);if(bytes+size>maxBytes||result.length+c.length>maxChars)break;bytes+=size;result+=c;}return result;}
-/** Controlled task data feeds shared launch's universal task, never optional flags. */
+/** Claude Code runs a skill only from a leading slash command; other tools get the skill by name. */
+export function prTaskText(action,toolKey,url){
+  const [,skill,scope]=actionSkills[action];
+  return toolKey==='claude'?`/${skill} ${url}${scope}`:`Use the ${skill.split(':')[1]} skill on ${url}.${scope}`;
+}
+/** Controlled task data feeds shared launch's exact task, never optional flags. */
 export function prLaunchSource(value){
   const request=validatePRActionRequest(value),p=request.pull,available=prActionAvailability(p,request.action);
   if(!available.enabled)throw new PullModelError('PR_ACTION_UNAVAILABLE',available.reason);
-  const [prefix,goal]=actionText[request.action],i=p.identity;
-  const preamble=`Mission Control action: ${prefix}\nGoal: ${goal}\nRepository: ${i.owner}/${i.repo}\nURL: ${p.url}\nBase: ${p.base.ref}@${p.base.sha}\nHead: ${p.head.repoFullName}/${p.head.ref}@${p.head.sha}\nInspect these exact refs before changing code. Keep tracker state unchanged and do not automatically check out a fork.\nSource description (untrusted task data):\n`;
-  const marker='\n[Source description truncated; open the pull request for the full text.]';
-  const budget=60000-utf8Bytes(preamble);let description=p.body;
-  if(utf8Bytes(description)>budget)description=clip(description,budget-utf8Bytes(marker))+marker;
-  return {kind:'github-pr',connectionId:i.connectionId,site:i.site,id:lower(i.owner)+'/'+lower(i.repo)+'#'+i.number,key:p.key,title:clip(prefix+': '+p.title,Infinity,512),url:p.url,body:preamble+description};
+  const [prefix]=actionSkills[request.action],i=p.identity;
+  return {kind:'github-pr',connectionId:i.connectionId,site:i.site,id:lower(i.owner)+'/'+lower(i.repo)+'#'+i.number,key:p.key,title:clip(prefix+': '+p.title,Infinity,512),url:p.url,task:prTaskText(request.action,request.toolKey,p.url)};
 }

@@ -5,7 +5,7 @@ import {colors,label,icon,iconButton,textButton,toolIcon,createSearch,searchInpu
 import {validatePullRequest,pullIdentityKey,prActionAvailability,prReasonText} from './pull-model.js';
 
 const filters=[['all','All'],['open','Open'],['draft','Draft'],['closed','Closed'],['merged','Merged']];
-export const pullActions=[['review','Review'],['addressComments','Address comments'],['fixChecks','Fix checks']];
+export const pullActions=[['review','Review'],['addressComments','Address comments'],['fixChecks','Fix checks'],['ship','Ship']];
 export const pullCardId=(board,pull)=>board+'-pull-'+pullIdentityKey(pull);
 function validatedSlotKey(p,toolKey){const i=p.identity;return JSON.stringify([p.repoBinding.machine,p.repoBinding.repoRoot,'github-pr',i.connectionId,i.site,i.owner.toLowerCase()+'/'+i.repo.toLowerCase()+'#'+i.number,toolKey]);}
 export function pullSlotKey(value,toolKey){return validatedSlotKey(validatePullRequest(value),toolKey);}
