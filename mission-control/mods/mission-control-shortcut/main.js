@@ -2297,11 +2297,13 @@ var text7 = (value, max) => typeof value === "string" && value.trim().length > 0
 var copy4 = (value) => JSON.parse(JSON.stringify(value));
 var MAX_SESSIONS = 100;
 var CLOUD_EVENT = "mission-control-cloud-sessions-v1";
-var MAX_STORE_CHARACTERS = 2e5;
+var MAX_STORE_BYTES = 1e6;
+var MESSAGES_PER_SESSION = 20;
+var MESSAGE_STATES = ["queued", "failed"];
 var SESSION_SITE = "https://claude.ai/code/";
 var SESSION_ID = /^session_[A-Za-z0-9]{8,64}$/;
 var REPO_PART = /^[A-Za-z0-9_.-]{1,100}$/;
-var RECORD_KEYS = ["id", "url", "repo", "checkout", "title", "source", "createdAt", "pr", "checkedAt"];
+var RECORD_KEYS = ["id", "url", "repo", "checkout", "title", "source", "createdAt", "pr", "checkedAt", "messages"];
 var PR_KEYS = ["number", "url", "state", "draft", "checks", "review"];
 var PR_STATES = ["open", "closed", "merged"];
 var CHECK_STATES = ["success", "failure", "pending"];
@@ -2347,14 +2349,31 @@ function validateRecord(value) {
   if (!Number.isSafeInteger(value.createdAt) || value.createdAt < 0) fail10("INVALID_STORE", "A cloud session time is invalid.");
   if (value.pr !== null) validatePull(value.pr);
   if (value.checkedAt !== null && (!Number.isSafeInteger(value.checkedAt) || value.checkedAt < 0)) fail10("INVALID_STORE", "A cloud session check time is invalid.");
+  validateMessages(value.messages);
   return copy4(value);
+}
+function validateMessages(value) {
+  if (!Array.isArray(value) || value.length > MESSAGES_PER_SESSION) fail10("INVALID_STORE", `A cloud session keeps at most ${MESSAGES_PER_SESSION} sent messages.`);
+  for (const m of value) {
+    if (!exact2(m, ["at", "text", "state", "error"]) || !Number.isSafeInteger(m.at) || m.at < 0 || !MESSAGE_STATES.includes(m.state)) fail10("INVALID_STORE", "A sent message is invalid.");
+    if (typeof m.text !== "string" || !m.text.trim() || m.text.length > MESSAGE_MAX || /[\u0000-\u0009\u000b-\u001f\u007f]/.test(m.text)) fail10("INVALID_STORE", "A sent message text is invalid.");
+    if (m.state === "queued" ? m.error !== null : !text7(m.error, 512)) fail10("INVALID_STORE", "A sent message state is invalid.");
+  }
+}
+function utf8Bytes2(value) {
+  let bytes2 = 0;
+  for (const ch of value) {
+    const c = ch.codePointAt(0);
+    bytes2 += c < 128 ? 1 : c < 2048 ? 2 : c < 65536 ? 3 : 4;
+  }
+  return bytes2;
 }
 function validateStore(value) {
   if (!exact2(value, ["v", "revision", "sessions"]) || value.v !== 1 || !Number.isSafeInteger(value.revision) || value.revision < 0 || !Array.isArray(value.sessions)) fail10("INVALID_STORE", "The cloud session list is invalid; the original file was preserved.");
   if (value.sessions.length > MAX_SESSIONS) fail10("STORE_FULL", `Mission Control follows at most ${MAX_SESSIONS} cloud sessions. Remove one first.`);
   const seen = /* @__PURE__ */ new Set();
   const sessions = value.sessions.map((record) => {
-    const checked = validateRecord(record);
+    const checked = validateRecord(object4(record) && !Object.hasOwn(record, "messages") ? { ...record, messages: [] } : record);
     if (seen.has(checked.id)) fail10("INVALID_STORE", "The cloud session list repeats a session.");
     seen.add(checked.id);
     return checked;
@@ -2364,7 +2383,7 @@ function validateStore(value) {
 function newRecord({ ref, repo, checkout = null, title, source = null, createdAt }) {
   const { id: id2, url } = parseSessionRef(ref);
   const name2 = typeof title === "string" && title.trim() ? title.trim().slice(0, 200) : "Cloud session " + id2.slice(8, 16);
-  return validateRecord({ id: id2, url, repo: githubRepo(repo), checkout, title: name2, source, createdAt, pr: null, checkedAt: null });
+  return validateRecord({ id: id2, url, repo: githubRepo(repo), checkout, title: name2, source, createdAt, pr: null, checkedAt: null, messages: [] });
 }
 function cloudStorePath(io) {
   const app = typeof io.appHome === "function" ? io.appHome() : io.appHome;
@@ -2380,7 +2399,7 @@ var CloudSessionStore = class {
   async snapshot() {
     const raw = await this.io.readTextFile(this.path);
     if (raw === null) return { raw, value: { v: 1, revision: 0, sessions: [] } };
-    if (typeof raw !== "string" || raw.length > MAX_STORE_CHARACTERS) fail10("INVALID_STORE", "The cloud session list exceeds its supported size; the original file was preserved.");
+    if (typeof raw !== "string" || utf8Bytes2(raw) > MAX_STORE_BYTES) fail10("INVALID_STORE", "The cloud session list exceeds its supported size; the original file was preserved.");
     let parsed;
     try {
       parsed = JSON.parse(raw);
@@ -2400,7 +2419,7 @@ var CloudSessionStore = class {
       change(draft.sessions);
       draft.revision++;
       const next = validateStore(draft), body = JSON.stringify(next, null, 2) + "\n";
-      if (body.length > MAX_STORE_CHARACTERS) fail10("STORE_FULL", "The cloud session list is full. Remove a session first.");
+      if (utf8Bytes2(body) > MAX_STORE_BYTES) fail10("STORE_FULL", "The cloud session list is full. Remove a session first.");
       await this.io.ensureDirectory?.(this.path.slice(0, this.path.lastIndexOf("/")));
       try {
         await this.io.writeTextFile(this.path, body, raw);
@@ -2425,6 +2444,23 @@ var CloudSessionStore = class {
       if (index2 >= 0) sessions.splice(index2, 1);
     });
   }
+  /**
+   * Keeps one sent message on its session, newest last, at most MESSAGES_PER_SESSION. When the file
+   * would outgrow its cap, that session keeps fewer of its oldest messages.
+   */
+  async recordMessage(id2, entry) {
+    for (let keep = MESSAGES_PER_SESSION; ; keep = Math.floor(keep / 2)) {
+      try {
+        return await this.edit((sessions) => {
+          const session = sessions.find((s) => s.id === id2);
+          if (!session) fail10("NOT_FOUND", "Mission Control no longer follows this cloud session.");
+          session.messages = [...session.messages, copy4(entry)].slice(-Math.max(keep, 1));
+        });
+      } catch (error2) {
+        if (error2?.code !== "STORE_FULL" || keep <= 1) throw error2;
+      }
+    }
+  }
   /** `found` maps a session id to its pull request (or null when none is found yet). */
   recordPulls(found, checkedAt) {
     return this.edit((sessions) => {
@@ -2439,6 +2475,7 @@ var CloudSessionStore = class {
 var STATUS_LABELS = Object.freeze({ started: "Started", draft: "Draft", checksRunning: "Checks running", checksFailing: "Checks failing", reviewRequested: "Review requested", changesRequested: "Changes requested", approved: "Approved", merged: "Merged", closed: "Closed" });
 var STATUS_COLORS = Object.freeze({ started: "working", draft: "idle", checksRunning: "working", checksFailing: "blocked", reviewRequested: "idle", changesRequested: "blocked", approved: "done", merged: "done", closed: "idle" });
 var createArgs = (task) => ["--cloud", task];
+var MESSAGE_MAX = 4e3;
 function findSessionLink(screen) {
   if (typeof screen !== "string") return null;
   const match = screen.match(/https:\/\/claude\.ai\/code\/((?:session|cse)_[A-Za-z0-9]{8,64})/);

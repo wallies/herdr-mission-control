@@ -3,6 +3,8 @@ import {v_flex,h_flex,InputState,Input} from 'gpui-base';
 import * as herdr from 'herdr';
 import {buildAgentModel} from './model.js';
 import {CloudRail} from './cloud-rail.js';
+import {CloudSessionView} from './cloud-session-view.js';
+import {SESSION_VIEW} from './cloud-tabs.js';
 import {TelemetryBridge} from '../../shared/telemetry.js';
 import {NameOwnership} from '../../shared/name-ownership.js';
 import {usageSourceFingerprint,validateUsageSource} from '../../shared/usage-sources.js';
@@ -16,6 +18,7 @@ const providerName=key=>({claude:'Claude Code',codex:'Codex',grok:'Grok'}[key]||
 export default class MissionControlAgents extends View{
   init(_props,cx){
     this.props=herdr.props()||{};this.role=this.props.view||'list';this.closed=false;this.busy=false;this.error=null;this.timers=[];this.jobs=[];this.names=null;this.telemetry=new TelemetryBridge(MOD,herdr);this.ownership=new NameOwnership(this.telemetry.io);this.inputs=[];
+    if(this.role===SESSION_VIEW){this.session=new CloudSessionView(herdr,this.props,{spawn:(cx,work)=>this.spawn(cx,work)});this.session.init(cx);return;}
     if(this.role==='source-form'){
       try{this.form=validateUsageSource(this.props.source);}catch{this.role='unavailable';this.error='This usage source is unavailable. Reopen source settings.';return;}
       this.formId=this.props.sourceId;this.expected=this.props.fresh?null:usageSourceFingerprint(this.form);
@@ -101,6 +104,7 @@ export default class MissionControlAgents extends View{
       .child(h_flex().h(14).gap(8).items_center().child(this.reading(row.depth?'Ctx':'Context',row.context)).child(this.reading('Quota',row.quota)));
   }
   render(cx){
+    if(this.session){this.session.sync(cx);return this.session.render();}
     if(this.role==='unavailable')return v_flex().size_full().p(18).gap(12).bg(colors().surface).child(this.sourceHeader('Usage source unavailable')).child(label(this.error,{muted:true}));
     if(this.role==='sources')return this.sourceList();if(this.role==='source-form')return this.sourceForm();
     const t=colors(),s=state(),model=this.model();herdr.setAgentOrder(model.navigation);this.cloud.sync(cx);const cloud=s.collapsed?null:this.cloud.render();
@@ -112,5 +116,5 @@ export default class MissionControlAgents extends View{
           .children(group.rows.map(row=>this.row(row))))))
         .when(!model.rows.length&&!cloud,e=>e.child(div().p(12).text_size(11).text_color(t.dim).child(model.count?'No matching agents.':'No agents running.'))));
   }
-  close(){this.closed=true;this.cloud?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.telemetry.close();for(const input of this.inputs)input.release();}
+  close(){this.closed=true;this.cloud?.close();this.session?.close();for(const timer of this.timers)timer?.cancel?.();for(const job of this.jobs)job?.cancel?.();this.telemetry.close();for(const input of this.inputs)input.release();}
 }

@@ -74,7 +74,7 @@ test('Start runs claude --cloud with the plain-word ship task in the card’s ch
   assert.doesNotMatch(JSON.stringify(tab),/PRIVATE|\/ship/,'no story body, no slash command');
   assert.deepEqual(f.reads[0],['read','t9','--lines','200']);assert.equal(f.reads.length,2,'stops reading once the link shows');
   const [session]=await f.sessions();
-  assert.deepEqual({...session},{id:ID,url:'https://claude.ai/code/'+ID,repo:'acme/botanic',checkout:f.repo,title:'sc-69416 Fix the export',source:{kind:'shortcut',key:'sc-69416'},createdAt:session.createdAt,pr:null,checkedAt:null});
+  assert.deepEqual({...session},{id:ID,url:'https://claude.ai/code/'+ID,repo:'acme/botanic',checkout:f.repo,title:'sc-69416 Fix the export',source:{kind:'shortcut',key:'sc-69416'},createdAt:session.createdAt,pr:null,checkedAt:null,messages:[]});
   assert.ok(shared(CLOUD_EVENT),'the Agents rail is told to reload');
   assert.ok(texts(f.view.render(f.cx)).includes('Cloud session started. Follow it in the Agents rail.'));
 });

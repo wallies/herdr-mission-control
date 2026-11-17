@@ -82,5 +82,6 @@ export class CloudSessions{
   }
   async remove(id){this.records=await this.store.remove(id);return this.records;}
   async add(record){this.records=await this.store.add(record);return this.records;}
+  async recordMessage(id,entry){this.records=await this.store.recordMessage(id,entry);return this.records;}
   close(){this.closed=true;this.pending=null;}
 }

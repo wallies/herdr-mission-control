@@ -33,7 +33,7 @@
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
     "backend.mjs": "b4b7117c074fe768737491930568f750ba4fb2809c6171bccfebbcf5d2c8798e",
-    "main.js": "a9319439843582b315beacf39dad02784c748c4359b3d57ebedffe2d3a7461ca",
+    "main.js": "b4535c63eb2369469f5533d5bf49611de75cf720e0917af47f2e6c6ceb12a1d8",
     "mod.json": "a1468c619f853f5de47d5f1a4da4828ddf95f9ddfd25c83ed2457e2cc8a8e927",
     "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
   },
@@ -45,7 +45,7 @@
     "src/mods/mission-control-shortcut/main.js": "4b62bd560f06ad2d38c6ef1fbdef0823a28be8e7db0206d63c2db4606883ec1e",
     "src/mods/mission-control-shortcut/mod.json": "9afe8c4f15dbbc1693b87282fdd2fb2c17a5a91034f64ab9d6c11a1a877aa148",
     "src/shared/cloud-launch.js": "63ccfdc4d73881d6a4e515529c652f429a0c5363b7f460ec993ddb3736f79971",
-    "src/shared/cloud-sessions.js": "e808945eead952a2e6c4fdb536fa6fdf08e6c707c7b179e84fa5dfbf4e90984d",
+    "src/shared/cloud-sessions.js": "6f82d4e9824ce326c237ba68c5f4ce7f12bab92aa17ef39685e0860877140470",
     "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",
     "src/shared/issue-board.js": "0c4657eda53cb8516c0392ce82109cb4ca0ccf06099993ab6190bc1a365cb1e4",
     "src/shared/launch-dialog.js": "c5c2a128bff69e847c5b3f3fed408d2266c71768b8f5c85dc936c33b8429b894",

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {parseSessionRef,githubRepo,repoFromRemote,validateStore,validateRecord,newRecord,CloudSessionStore,cloudStatus,STATUS_LABELS,createArgs,messageArgs,teleportArgs,validMessage,findSessionLink,MAX_SESSIONS} from '../src/shared/cloud-sessions.js';
+import {parseSessionRef,githubRepo,repoFromRemote,validateStore,validateRecord,newRecord,CloudSessionStore,cloudStatus,STATUS_LABELS,createArgs,messageArgs,teleportArgs,validMessage,findSessionLink,MAX_SESSIONS,MESSAGES_PER_SESSION,MAX_STORE_BYTES,utf8Bytes} from '../src/shared/cloud-sessions.js';
 
 const ID='session_01HJKLMNOPQRSTUVWXYZ';
 const record=(over={})=>newRecord({ref:ID,repo:'acme/botanic',checkout:'/work/botanic',title:'sc-69416 Fix the export',source:{kind:'shortcut',key:'sc-69416'},createdAt:1000,...over});
@@ -93,4 +93,31 @@ test('the exact Claude Code arguments for create, message and teleport',()=>{
 test('the session link is found in a tab’s screen text',()=>{
   assert.deepEqual(findSessionLink('Cloning…\nView: https://claude.ai/code/'+ID+'?from=cli\n'),{id:ID,url:'https://claude.ai/code/'+ID});
   assert.equal(findSessionLink('Cloning the repository…'),null);assert.equal(findSessionLink(null),null);
+});
+
+test('sent messages are kept per session, newest last, at most 20, each at most 4000 characters',async t=>{
+  const f=await storeFixture(t),store=new CloudSessionStore(f.io);await store.add(record());
+  for(let i=0;i<25;i++)await store.recordMessage(ID,{at:i,text:'message '+i,state:'queued',error:null});
+  const [kept]=await store.list();assert.equal(kept.messages.length,MESSAGES_PER_SESSION);assert.equal(kept.messages[0].text,'message 5');assert.equal(kept.messages.at(-1).text,'message 24');
+  await assert.rejects(store.recordMessage(ID,{at:1,text:'x'.repeat(4001),state:'queued',error:null}),/message text is invalid/);
+  for(const bad of [{at:1,text:'ok',state:'queued',error:'x'},{at:1,text:'ok',state:'failed',error:null},{at:1,text:'ok',state:'sent',error:null},{at:1,text:'',state:'queued',error:null},{at:1,text:'ok',state:'queued'}])await assert.rejects(store.recordMessage(ID,bad),/sent message/i,JSON.stringify(bad));
+  await assert.rejects(store.recordMessage('session_MISSING000000000',{at:1,text:'ok',state:'queued',error:null}),{code:'NOT_FOUND'});
+  assert.throws(()=>validateRecord({...record(),messages:Array.from({length:21},(_,i)=>({at:i,text:'m',state:'queued',error:null}))}),/at most 20/);
+});
+
+test('a record written before sent messages were kept loads with none',async t=>{
+  const f=await storeFixture(t),{messages:_none,...old}=record();await fs.mkdir(path.dirname(f.file),{recursive:true});
+  await fs.writeFile(f.file,JSON.stringify({v:1,revision:1,sessions:[old]}));assert.deepEqual((await new CloudSessionStore(f.io).list())[0].messages,[]);
+});
+
+test('when the file would outgrow its cap, the session keeps fewer of its oldest messages',async t=>{
+  const f=await storeFixture(t),store=new CloudSessionStore(f.io),big='y'.repeat(3900);
+  const many=Array.from({length:MAX_SESSIONS},(_,i)=>({...record({ref:'session_'+String(i).padStart(10,'A')}),messages:[]}));
+  // Other sessions fill the file to just under its cap, so this session's 20 messages cannot all fit.
+  const size=()=>utf8Bytes(JSON.stringify({v:1,revision:1,sessions:many},null,2)+'\n');
+  for(let i=1;size()<MAX_STORE_BYTES-30000;i=i%(MAX_SESSIONS-1)+1)if(many[i].messages.length<MESSAGES_PER_SESSION)many[i].messages.push({at:0,text:big,state:'queued',error:null});
+  await fs.mkdir(path.dirname(f.file),{recursive:true});await fs.writeFile(f.file,JSON.stringify({v:1,revision:1,sessions:many},null,2)+'\n');
+  const id=many[0].id;for(let i=0;i<20;i++)await store.recordMessage(id,{at:100+i,text:big,state:'queued',error:null});
+  const mine=(await store.list()).find(r=>r.id===id);assert.ok(mine.messages.length<20&&mine.messages.length>=1);assert.equal(mine.messages.at(-1).at,119,'the newest is always kept');
+  assert.ok(utf8Bytes(await fs.readFile(f.file,'utf8'))<=MAX_STORE_BYTES);
 });

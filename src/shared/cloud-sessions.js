@@ -19,11 +19,15 @@ const copy = value => JSON.parse(JSON.stringify(value));
 export const MAX_SESSIONS = 100;
 /** Shared state that tells every Mission Control copy the list changed; it holds no records. */
 export const CLOUD_EVENT = 'mission-control-cloud-sessions-v1';
-export const MAX_STORE_CHARACTERS = 200000;
+/** Bytes, under the 1 MiB that Herdr's readTextFile reads. */
+export const MAX_STORE_BYTES = 1000000;
+/** Messages sent from Mission Control, kept per session, oldest dropped first. */
+export const MESSAGES_PER_SESSION = 20;
+const MESSAGE_STATES = ['queued', 'failed'];
 export const SESSION_SITE = 'https://claude.ai/code/';
 const SESSION_ID = /^session_[A-Za-z0-9]{8,64}$/;
 const REPO_PART = /^[A-Za-z0-9_.-]{1,100}$/;
-const RECORD_KEYS = ['id', 'url', 'repo', 'checkout', 'title', 'source', 'createdAt', 'pr', 'checkedAt'];
+const RECORD_KEYS = ['id', 'url', 'repo', 'checkout', 'title', 'source', 'createdAt', 'pr', 'checkedAt', 'messages'];
 const PR_KEYS = ['number', 'url', 'state', 'draft', 'checks', 'review'];
 const PR_STATES = ['open', 'closed', 'merged'];
 const CHECK_STATES = ['success', 'failure', 'pending'];
@@ -77,7 +81,23 @@ export function validateRecord(value) {
   if (!Number.isSafeInteger(value.createdAt) || value.createdAt < 0) fail('INVALID_STORE', 'A cloud session time is invalid.');
   if (value.pr !== null) validatePull(value.pr);
   if (value.checkedAt !== null && (!Number.isSafeInteger(value.checkedAt) || value.checkedAt < 0)) fail('INVALID_STORE', 'A cloud session check time is invalid.');
+  validateMessages(value.messages);
   return copy(value);
+}
+
+/** What Mission Control sent: when, the text, and whether Claude Code queued it or why it failed. */
+export function validateMessages(value) {
+  if (!Array.isArray(value) || value.length > MESSAGES_PER_SESSION) fail('INVALID_STORE', `A cloud session keeps at most ${MESSAGES_PER_SESSION} sent messages.`);
+  for (const m of value) {
+    if (!exact(m, ['at', 'text', 'state', 'error']) || !Number.isSafeInteger(m.at) || m.at < 0 || !MESSAGE_STATES.includes(m.state)) fail('INVALID_STORE', 'A sent message is invalid.');
+    if (typeof m.text !== 'string' || !m.text.trim() || m.text.length > MESSAGE_MAX || /[\u0000-\u0009\u000b-\u001f\u007f]/.test(m.text)) fail('INVALID_STORE', 'A sent message text is invalid.');
+    if (m.state === 'queued' ? m.error !== null : !text(m.error, 512)) fail('INVALID_STORE', 'A sent message state is invalid.');
+  }
+}
+export function utf8Bytes(value) {
+  let bytes = 0;
+  for (const ch of value) { const c = ch.codePointAt(0); bytes += c < 0x80 ? 1 : c < 0x800 ? 2 : c < 0x10000 ? 3 : 4; }
+  return bytes;
 }
 
 export function validateStore(value) {
@@ -85,7 +105,8 @@ export function validateStore(value) {
   if (value.sessions.length > MAX_SESSIONS) fail('STORE_FULL', `Mission Control follows at most ${MAX_SESSIONS} cloud sessions. Remove one first.`);
   const seen = new Set();
   const sessions = value.sessions.map(record => {
-    const checked = validateRecord(record);
+    // Records written before sent messages were kept have no messages field.
+    const checked = validateRecord(object(record) && !Object.hasOwn(record, 'messages') ? { ...record, messages: [] } : record);
     if (seen.has(checked.id)) fail('INVALID_STORE', 'The cloud session list repeats a session.');
     seen.add(checked.id);
     return checked;
@@ -97,7 +118,7 @@ export function validateStore(value) {
 export function newRecord({ ref, repo, checkout = null, title, source = null, createdAt }) {
   const { id, url } = parseSessionRef(ref);
   const name = typeof title === 'string' && title.trim() ? title.trim().slice(0, 200) : 'Cloud session ' + id.slice(8, 16);
-  return validateRecord({ id, url, repo: githubRepo(repo), checkout, title: name, source, createdAt, pr: null, checkedAt: null });
+  return validateRecord({ id, url, repo: githubRepo(repo), checkout, title: name, source, createdAt, pr: null, checkedAt: null, messages: [] });
 }
 
 export function cloudStorePath(io) {
@@ -115,7 +136,7 @@ export class CloudSessionStore {
   async snapshot() {
     const raw = await this.io.readTextFile(this.path);
     if (raw === null) return { raw, value: { v: 1, revision: 0, sessions: [] } };
-    if (typeof raw !== 'string' || raw.length > MAX_STORE_CHARACTERS) fail('INVALID_STORE', 'The cloud session list exceeds its supported size; the original file was preserved.');
+    if (typeof raw !== 'string' || utf8Bytes(raw) > MAX_STORE_BYTES) fail('INVALID_STORE', 'The cloud session list exceeds its supported size; the original file was preserved.');
     let parsed;
     try { parsed = JSON.parse(raw); } catch { fail('INVALID_STORE', 'The cloud session list is not valid JSON; the original file was preserved.'); }
     return { raw, value: validateStore(parsed) };
@@ -131,7 +152,7 @@ export class CloudSessionStore {
       change(draft.sessions);
       draft.revision++;
       const next = validateStore(draft), body = JSON.stringify(next, null, 2) + '\n';
-      if (body.length > MAX_STORE_CHARACTERS) fail('STORE_FULL', 'The cloud session list is full. Remove a session first.');
+      if (utf8Bytes(body) > MAX_STORE_BYTES) fail('STORE_FULL', 'The cloud session list is full. Remove a session first.');
       await this.io.ensureDirectory?.(this.path.slice(0, this.path.lastIndexOf('/')));
       try {
         await this.io.writeTextFile(this.path, body, raw);
@@ -157,6 +178,24 @@ export class CloudSessionStore {
       const index = sessions.findIndex(s => s.id === id);
       if (index >= 0) sessions.splice(index, 1);
     });
+  }
+
+  /**
+   * Keeps one sent message on its session, newest last, at most MESSAGES_PER_SESSION. When the file
+   * would outgrow its cap, that session keeps fewer of its oldest messages.
+   */
+  async recordMessage(id, entry) {
+    for (let keep = MESSAGES_PER_SESSION; ; keep = Math.floor(keep / 2)) {
+      try {
+        return await this.edit(sessions => {
+          const session = sessions.find(s => s.id === id);
+          if (!session) fail('NOT_FOUND', 'Mission Control no longer follows this cloud session.');
+          session.messages = [...session.messages, copy(entry)].slice(-Math.max(keep, 1));
+        });
+      } catch (error) {
+        if (error?.code !== 'STORE_FULL' || keep <= 1) throw error;
+      }
+    }
   }
 
   /** `found` maps a session id to its pull request (or null when none is found yet). */
