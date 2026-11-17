@@ -32,10 +32,11 @@
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
+    "assets/tracker.svg": "5ff3ced7bf6e88edc7299d0ea3119d68ef856f86b6684fcd3adb2c53197064aa",
     "backend.mjs": "d4efac5ec073bb4750dbbf1ae92a1c2013f8f03e5662999ef65fca2ed940e780",
     "main.js": "4d9afdef2d8056ffa94e0ff3594457e3e2caf22f1dabf2e19940a5fea96a85b5",
     "mod.json": "f7b04abc6f30875216f1541f03dd8f170d855b20db26100a04053a859e19cf9f",
-    "NOTICE.md": "2a5455e0ff8d1e034d774bed6fc448a1002519047e10050f963c170725b49b3c"
+    "NOTICE.md": "ef50a4bada99728b952c1cefd878896a773514494863b9eb3d92336c10b65223"
   },
   "sources": {
     "node_modules/@modelcontextprotocol/sdk/dist/esm/client/auth.js": "2228650debcaa3fcaa59d17af88bb0e17ec5f972da2474e39251589516760c33",
@@ -298,7 +299,7 @@
     "node_modules/zod/v4/mini/iso.js": "24acf58a401645baaab9846987e5387cdf7c9e659e2e0aa3b3b6b8ac5555a5ed",
     "node_modules/zod/v4/mini/parse.js": "b87374f4e821d583f699d83e4b74ac59e4a5a782c510959187a0ba209145d76b",
     "node_modules/zod/v4/mini/schemas.js": "5614339bbec6b9be13ed1809e1215fe44d78e99f5f0eee848c0bb3b25dc1c9b6",
-    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
+    "src/assets/icons.json": "6e2d9ddd2e3f9a37c1d9305570da0d16db0b20b27c74880409b537692b9fb3e8",
     "src/mods/mission-control-jira/api.mjs": "f0d83c7b2ea5cc3429659c38b3128ac166fa1ede95482c46e7e331d3eaa699b2",
     "src/mods/mission-control-jira/backend.mjs": "095e023d7357d511112fd556d1d2e0c73451eeed6021c20e5e55a6539521cc31",
     "src/mods/mission-control-jira/cli.mjs": "b0f332b70eae8e667921247bc1e1341d550fc25fc399eb2ea5c66fd534f7ea72",

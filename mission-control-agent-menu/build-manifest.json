@@ -32,12 +32,13 @@
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
+    "assets/tracker.svg": "5ff3ced7bf6e88edc7299d0ea3119d68ef856f86b6684fcd3adb2c53197064aa",
     "main.js": "741d78592268690bce91b76472311efa061c2dfef9325c1f662bc14f2e315a52",
     "mod.json": "b9dc2364b8bd1a9f91d9387516fbd9bb108064d8fb3af734b4b5042266493a56",
-    "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
+    "NOTICE.md": "1292316c5526b1e7951d8d2cb6be80fa7165fc74c17c47f57bd20b2989535cf2"
   },
   "sources": {
-    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
+    "src/assets/icons.json": "6e2d9ddd2e3f9a37c1d9305570da0d16db0b20b27c74880409b537692b9fb3e8",
     "src/mods/mission-control-agent-menu/main.js": "a015aa335f43bd39b78800f134fa5010316d2ad0a792bc9156b9fa1a047d6a12",
     "src/mods/mission-control-agent-menu/mod.json": "577e100ca81956783494435794e18cbabaabf4d2daa926a9c4f9c38a5f1f61eb",
     "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",

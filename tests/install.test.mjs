@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { install, rollback, formatDisclosure, verifyInstallReceipt, validateInstallReceipt, planInstall, readPackage, layoutReferences, analyzeKeys, terminalAddresses, pngInfo, removeOwned, InstallError } from '../scripts/install.mjs';
+import { EXTERNAL_MODS } from '../scripts/external-mods.mjs';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SCRIPT = path.join(ROOT, 'scripts/install.mjs');
@@ -390,4 +391,25 @@ test('the repository receipt check fails cleanly until a real confirmed install 
   const run = cli(['--verify-receipt', path.join(ROOT, 'evidence/native/install.json')], process.env);
   assert.equal(run.status, 1);
   assert.match(run.stderr, /^MISSING_RECEIPT: /);
+});
+
+test('a declared external mod is never shipped but must be in the app home; a missing one says how to install it', async t => {
+  const f = await fixture(t);
+  const manifest = JSON.parse(await fs.readFile(path.join(f.source, 'build-manifest.json'), 'utf8'));
+  const tree = JSON.parse(f.installable['layouts/mission-control.json']);
+  tree.children.push({ id: 'tracker', type: 'block', content: { mod: 'work-tracker', props: { layoutFramed: true } } }, { id: 'header', type: 'block', content: { mod: 'pane' } });
+  const text = JSON.stringify(tree);
+  await fs.writeFile(path.join(f.source, 'layouts/mission-control.json'), text);
+  manifest.artifacts['layouts/mission-control.json'] = sha(Buffer.from(text));
+  await fs.writeFile(path.join(f.source, 'build-manifest.json'), JSON.stringify(manifest));
+  const missing = (await planInstall({ source: f.source, appHome: f.home })).refusals.filter(r => r.code === 'MISSING_REFERENCE');
+  assert.deepEqual(missing, [
+    { code: 'MISSING_REFERENCE', layout: 'mission-control', mod: 'pane', fix: 'It ships with the Herdr app; update Herdr.' },
+    { code: 'MISSING_REFERENCE', layout: 'mission-control', mod: 'work-tracker', fix: 'Install it with `tracker install-mod`.' }]);
+  assert.match(formatDisclosure(await planInstall({ source: f.source, appHome: f.home })), /REFUSED MISSING_REFERENCE: .*tracker install-mod/);
+  await writeFiles(f.home, { 'mods/work-tracker/main.js': 'installed by work-tracker\n', 'mods/pane/main.js': 'shipped\n' });
+  const plan = await planInstall({ source: f.source, appHome: f.home });
+  assert.deepEqual(plan.refusals, [], 'present external mods are accepted');
+  assert.ok(!plan.targets.some(target => /^mods\/(?:work-tracker|pane)\//.test(target.path)), 'an external mod is never written');
+  assert.deepEqual(Object.keys(EXTERNAL_MODS).sort(), ['pane', 'work-tracker']);
 });

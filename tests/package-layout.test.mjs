@@ -20,12 +20,13 @@ const LAYOUT_NAMES = Object.freeze(['mission-control', 'mission-control-classic'
 const BUNDLED_MODS = Object.freeze(['mission-control-agents', 'mission-control-control-panel', 'mission-control-github', 'mission-control-gitlab',
   'mission-control-jira', 'mission-control-reviews', 'mission-control-sessions', 'mission-control-shortcut', 'mission-control-spaces', 'mission-control-tabs']);
 const OPTIONAL_MODS = Object.freeze(['mission-control-accounts']);
-/** The nine navigation destinations: mc-work-stack children, in order, with their exact block content. */
+/** The ten navigation destinations: mc-work-stack children, in order, with their exact block content. */
 const DESTINATIONS = Object.freeze([
   ['jira', 'mission-control-jira', {view: 'panel', hideHeader: true}],
   ['github', 'mission-control-github', {view: 'issues', hideHeader: true}],
   ['pulls', 'mission-control-github', {view: 'pulls', hideHeader: true}],
   ['reviews', 'mission-control-reviews', {view: 'panel', hideHeader: true}],
+  ['tracker', 'work-tracker', {layoutFramed: true}],
   ['gitlab', 'mission-control-gitlab', {view: 'issues', hideHeader: true}],
   ['merges', 'mission-control-gitlab', {view: 'merges', hideHeader: true}],
   ['shortcut', 'mission-control-shortcut', {view: 'panel', hideHeader: true}],
@@ -111,7 +112,7 @@ function findNode(tree, id) {
   return null;
 }
 
-/** Problems with the nine destinations and both GitLab role nodes in one layout tree. */
+/** Problems with the ten destinations and both GitLab role nodes in one layout tree. */
 function destinationProblems(name, tree) {
   const out = [], stack = findNode(tree, 'mc-work-stack');
   const children = Array.isArray(stack?.children) ? stack.children : [];
@@ -242,7 +243,7 @@ test('bundle recipe follows the six-part brief with an access disclosure and sep
   for (const target of recipeLinks(BUNDLE, recipe)) assert.ok(target.startsWith(BUNDLE + '/'), `relative link stays inside the package: ${target}`);
 });
 
-test('both layout files and both Settings SVGs are bundled unchanged with all nine destinations and both GitLab roles', async () => {
+test('both layout files and both Settings SVGs are bundled unchanged with all ten destinations and both GitLab roles', async () => {
   const layouts = await filesBelow(path.join(ROOT, BUNDLE, 'layouts'));
   assert.deepEqual(Object.keys(layouts).sort(), ['mission-control-classic.json', 'mission-control-classic.svg', 'mission-control.json', 'mission-control.svg']);
   const referenced = new Set();
@@ -264,7 +265,7 @@ test('both layout files and both Settings SVGs are bundled unchanged with all ni
     for (const mod of referencedMods(tree)) referenced.add(mod);
   }
   const overviewSlots = [...(await fs.readFile(path.join(ROOT, BUNDLE, 'layouts/mission-control.svg'), 'utf8')).matchAll(/data-source="([a-z-]+)"/g)].map(m => m[1]);
-  assert.deepEqual(overviewSlots, DESTINATIONS.map(([id]) => id), 'the overview Settings artwork depicts the nine sources');
+  assert.deepEqual(overviewSlots, DESTINATIONS.map(([id]) => id), 'the overview Settings artwork depicts the ten sources');
   assert.deepEqual([...referenced].sort(), [...BUNDLED_MODS]);
 });
 

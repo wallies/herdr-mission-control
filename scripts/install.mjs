@@ -5,6 +5,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { isDeepStrictEqual } from 'node:util';
+import { EXTERNAL_MODS, isExternalMod } from './external-mods.mjs';
 
 const SELF = fileURLToPath(import.meta.url);
 export const PROJECT_ROOT = path.resolve(path.dirname(SELF), '..');
@@ -231,7 +232,7 @@ export async function planInstall({ source, appHome, layout } = {}) {
   const ownMods = new Set(pkg.mods.map(mod => mod.name));
   for (const item of pkg.layouts) {
     for (const reference of item.references) {
-      if (!ownMods.has(reference) && !await lstat(path.join(home, 'mods', reference))) refusals.push({ code: 'MISSING_REFERENCE', layout: item.name, mod: reference });
+      if (!ownMods.has(reference) && !await lstat(path.join(home, 'mods', reference))) refusals.push({ code: 'MISSING_REFERENCE', layout: item.name, mod: reference, ...(isExternalMod(reference) ? { fix: EXTERNAL_MODS[reference] } : {}) });
     }
     if (typeof item.preview !== 'string' || !/^layouts\/[^/]+\.(?:svg|png)$/.test(item.preview) || !pkg.files.has(item.preview)) refusals.push({ code: 'PREVIEW_UNRESOLVED', layout: item.name, preview: item.preview });
   }

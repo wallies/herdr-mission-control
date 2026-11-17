@@ -22,15 +22,16 @@
     "assets/sessions.svg": "40c70935bd80015005b85b9b42368e4dfdf44ac6a3392e2f6b7fd18a59159d9d",
     "assets/settings.svg": "c0d3295d7dc3261c7f6e9e6eb4217b044b834d680215ac1e38f9c1efb11b2dc9",
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
-    "main.js": "e54bd727c49907352af4eddbd111dce19e50c1e21f7f095d164da93e91c81306",
+    "assets/tracker.svg": "5ff3ced7bf6e88edc7299d0ea3119d68ef856f86b6684fcd3adb2c53197064aa",
+    "main.js": "fe513022fdc1e5ed00b9200eb7480aa06e245b0bd4a123a6f825a908ea6157be",
     "mod.json": "21a3ac7b84f85a6c8de03c9f10bf72ac0d9f5c56d938db0fcf39d0b0aa11b4d0",
-    "NOTICE.md": "253ba14d05906a477feb0b83c59936afac9ab50033e2131c8c98577adb3ac9ff"
+    "NOTICE.md": "aa0a719335b92bc971aaeea31ba4feafe36f5092616a079fd828cfca1c733247"
   },
   "sources": {
-    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
-    "src/mods/mission-control-tabs/main.js": "3ee55c2db82082c35d163345116015faf7998630f941b31ff7416c3bff1aa095",
-    "src/mods/mission-control-tabs/mod.json": "18475d345cf6540b7b9a074856b5374263005133181daa26d160dc730830b188",
-    "src/mods/mission-control-tabs/navigation.js": "3f328b84c25f9ac4de9e7ff04a0d5e0180d015b6c0beb12ccf762e88ff3656ad",
+    "src/assets/icons.json": "6e2d9ddd2e3f9a37c1d9305570da0d16db0b20b27c74880409b537692b9fb3e8",
+    "src/mods/mission-control-tabs/main.js": "7b067cfd5982491ad489fbfc3acb2f8109912f1e88421fc81735a924e102d22e",
+    "src/mods/mission-control-tabs/mod.json": "b182e43a112279bb76c8a67f527af66c48fc3f651ba31e326ee0cbacae851b1c",
+    "src/mods/mission-control-tabs/navigation.js": "ec87f93f33ad5a141521326bb52412b527c0ff0799e86a0bd11569da7c8986b6",
     "src/shared/closed-tabs.js": "83c8f39688fbb0271e3d0a6dc00a7a5c132e3b80aecfdd78a4486611695468ac",
     "src/shared/codex-session-hook.js": "1eadbfefc4af197d58165f290f3b4b955bc7de4895c8cae84cbe5d16c583fbd5",
     "src/shared/config.js": "f1ed010e9d532554b9159b7483a052704815894109d464cc60d2be6833eee4db",

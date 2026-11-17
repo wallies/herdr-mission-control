@@ -5704,6 +5704,8 @@ var SOURCES2 = freeze8([
   { id: "pulls", label: "Pull requests", short: "PRs", icon: "pull-request", mod: "mission-control-github", props: { view: "pulls", hideHeader: true }, scopeKey: "mission-control-github-prs-ui-v1" },
   // Review requests come from every repository the gh account can see, never one space.
   { id: "reviews", label: "Reviews", short: "Reviews", icon: "review", mod: "mission-control-reviews", props: { view: "panel", hideHeader: true }, scopeKey: null, fixedScope: "all", caption: "All repositories" },
+  // work-tracker installs and updates its own mod (`tracker install-mod`); it follows the focused agent, not a space.
+  { id: "tracker", label: "Tracker", short: "Tracker", icon: "tracker", mod: "work-tracker", props: { layoutFramed: true }, scopeKey: null, fixedScope: "all", caption: "Focused agent", external: { install: "tracker install-mod" } },
   { id: "gitlab", label: "GitLab issues", short: "GitLab", icon: "gitlab", mod: "mission-control-gitlab", props: { view: "issues", hideHeader: true }, scopeKey: "mission-control-gitlab-ui-v1" },
   { id: "merges", label: "Merge requests", short: "MRs", icon: "branch", mod: "mission-control-gitlab", props: { view: "merges", hideHeader: true }, scopeKey: "mission-control-gitlab-mrs-ui-v1" },
   { id: "shortcut", label: "Shortcut", short: "Shortcut", icon: "shortcut", mod: "mission-control-shortcut", props: { view: "panel", hideHeader: true }, scopeKey: "mission-control-shortcut-ui-v1" },
@@ -5713,6 +5715,7 @@ var SOURCES2 = freeze8([
 ]);
 var SOURCE_IDS = freeze8(SOURCES2.map((s) => s.id));
 var BY_ID = new Map(SOURCES2.map((s) => [s.id, s]));
+var EXTERNAL_SOURCES = freeze8(SOURCES2.filter((s) => s.external));
 function hiddenSources(sharedFn) {
   let v = null;
   try {
@@ -5749,7 +5752,7 @@ function findNode(tree, id2, { limit = 2e3 } = {}) {
 }
 var validName = (v) => typeof v === "string" && LAYOUT_NAME.test(v);
 var swapLabel = (name2) => LAYOUT_LABELS[name2] || "the other view";
-function layoutContract({ tree = null, name: name2 = null, names = [], props: props2 = {} } = {}) {
+function layoutContract({ tree = null, name: name2 = null, names = [], props: props2 = {}, missing = [] } = {}) {
   const main = findNode(tree, NODES.main), panel = findNode(tree, NODES.panel), node = findNode(tree, NODES.stack);
   const stack = node && node.type === "stack" && Array.isArray(node.children) ? node : null;
   const ids = stack ? stack.children.map((c) => plain5(c) && typeof c.id === "string" ? c.id : null).filter(Boolean) : [];
@@ -5770,7 +5773,8 @@ function layoutContract({ tree = null, name: name2 = null, names = [], props: pr
     stackReason: stack ? null : node ? "mc-work-stack is not a stack." : "this layout has no work stack (mc-work-stack).",
     panel: plain5(panel) ? { hidden: panel.hidden === true } : null,
     panelControl: Boolean(panel) || props2?.panel === true,
-    swap
+    swap,
+    missing: Array.isArray(missing) ? EXTERNAL_SOURCES.map((s) => s.mod).filter((mod) => missing.includes(mod)) : []
   });
 }
 function sourceState(contract, id2, hidden = null) {
@@ -5778,6 +5782,8 @@ function sourceState(contract, id2, hidden = null) {
   if (hidden?.has(id2)) return { enabled: false, hidden: true, reason: "Turned off in Mission Control sources (the gear in the tab bar)." };
   if (!contract?.stack) return { enabled: false, reason: "Unavailable: " + (contract?.stackReason || "this layout has no work stack (mc-work-stack).") };
   if (!contract.children.includes(id2)) return { enabled: false, reason: "Not in this layout." };
+  const s = BY_ID.get(id2);
+  if (s.external && contract.missing?.includes(s.mod)) return { enabled: false, missing: true, reason: `${s.label} is not installed. Install it with \`${s.external.install}\`.` };
   return { enabled: true, reason: null };
 }
 function scopeOf(id2, sharedFn) {
@@ -5892,12 +5898,13 @@ function sourceButton(mod, source, { mode, selected, state, onSelect }) {
 function renderNavigation({ mod, contract, width = null, scope = null, spaceName = null, hidden = /* @__PURE__ */ new Set(), onSelect, onHide, onSize }) {
   const t = colors(), panel = Boolean(contract.panel), shown = SOURCES2.filter((s) => !hidden.has(s.id)), mode = navigationMode(width, { panel, sources: shown });
   const room = Number.isFinite(width) ? width - navigationWidth(mode, { panel, sources: shown }) : 0;
-  const caption = !contract.stack ? "Work sources unavailable: " + contract.stackReason : !shown.length ? "Every work source is turned off. Turn one on with the gear in the tab bar." : contract.active && !hidden.has(contract.active) ? BY_ID.get(contract.active)?.caption ? BY_ID.get(contract.active).caption : scope === "all" ? "All spaces" : ["This space", spaceName].filter(Boolean).join(" · ") : null;
+  const missing = contract.active && !hidden.has(contract.active) ? sourceState(contract, contract.active, hidden).missing === true : false;
+  const caption = !contract.stack ? "Work sources unavailable: " + contract.stackReason : missing ? sourceState(contract, contract.active, hidden).reason : !shown.length ? "Every work source is turned off. Turn one on with the gear in the tab bar." : contract.active && !hidden.has(contract.active) ? BY_ID.get(contract.active)?.caption ? BY_ID.get(contract.active).caption : scope === "all" ? "All spaces" : ["This space", spaceName].filter(Boolean).join(" · ") : null;
   let group = h_flex3().id("work-sources").flex_1().min_w(0).h_full().gap(NAV_METRICS.gap).items_center().children(shown.map((s) => sourceButton(mod, s, { mode, selected: contract.active === s.id, state: sourceState(contract, s.id, hidden), onSelect })));
   if (!shown.length) group = group.child(div3().id("source-caption").min_w(0).px(6).truncate().text_size(10.5).text_color(t.dim).tooltip(caption).child(caption));
   else if (mode !== "icons") {
     group = group.child(div3().flex_1().min_w(0));
-    if (caption && (!contract.stack || room >= NAV_METRICS.caption)) group = group.child(div3().id("source-caption").min_w(0).truncate().text_size(10.5).text_color(contract.stack ? t.dim : t.blocked).tooltip(caption).child(caption));
+    if (caption && (!contract.stack || room >= NAV_METRICS.caption)) group = group.child(div3().id("source-caption").min_w(0).truncate().text_size(10.5).text_color(contract.stack && !missing ? t.dim : t.blocked).tooltip(caption).child(caption));
   }
   let root = h_flex3().id("mc-work-navigation").size_full().min_w(0).px(6).gap(NAV_METRICS.gap).items_center().bg(t.chrome).border_b(1).border_color(t.border).role("tab_list").accessibility_label(contract.stack ? "Work sources" : "Work sources unavailable: " + contract.stackReason).on_size_change((size, cx) => onSize?.(size, cx)).child(group);
   if (panel) root = root.child(iconButton(mod, "hide-work-panel", "close", "Hide work panel", (_e, cx) => onHide?.(cx), { size: 24 }));
@@ -5935,9 +5942,9 @@ var REQUEST_EVENT = "mission-control-tabs-request-v1";
 var COMMAND_EVENT = "mission-control-tabs-command-v1";
 var VIEWS = Object.freeze(["topbar", "navigation", "menu", "launch", "settings", "context", "sources", "restart"]);
 var COMMANDS = Object.freeze(["new", "settings", "sources", "reopen-tab", "reopen-agent", "swap", "panel", "rename", "automatic-name", "close", ...SOURCES2.map((s) => "source-" + s.id)]);
-var TIMING = Object.freeze({ tickMs: 1e3, tickStaleMs: 2e4, pressMs: 6e3, closeMs: 1e4, reopenStaleMs: 95e3, requestMs: 5e3, namesMs: 6e4, wheelMs: 160, commandMs: 750, reopenReadMs: 2e3 });
+var TIMING = Object.freeze({ tickMs: 1e3, tickStaleMs: 2e4, pressMs: 6e3, closeMs: 1e4, reopenStaleMs: 95e3, requestMs: 5e3, namesMs: 6e4, wheelMs: 160, commandMs: 750, reopenReadMs: 2e3, externalMs: 6e4 });
 var STATUS = Object.freeze({ working: "Working", blocked: "Needs input", done: "Done", idle: "Idle" });
-var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "review", "search", "sessions", "settings", "shortcut"]);
+var ICONS = Object.freeze(["agent", "branch", "close", "folder", "github", "gitlab", "jira", "layout", "more", "panel", "pin", "plus", "priority", "pull-request", "refresh", "review", "search", "sessions", "settings", "shortcut", "tracker"]);
 var TOPBAR_WIDE = 720;
 var DIALOG_VIEWS = /* @__PURE__ */ new Set(["menu", "launch", "settings"]);
 var plain6 = (v) => v !== null && typeof v === "object" && !Array.isArray(v);
@@ -6020,7 +6027,10 @@ var MissionControlTabs = class extends View {
       this.dialog.init(cx);
       return;
     }
-    if (this.role === "navigation") return this.restore();
+    if (this.role === "navigation") {
+      this.checkExternal(cx, Date.now());
+      return this.restore();
+    }
     if (this.role === "sources" || this.role === "restart") {
       this.restartStatus = null;
       try {
@@ -6077,7 +6087,7 @@ var MissionControlTabs = class extends View {
       name2 = herdr.shared("layout");
     } catch {
     }
-    return layoutContract({ tree, name: name2, names: typeof herdr.layouts === "function" ? herdr.layouts() || [] : [], props: this.props });
+    return layoutContract({ tree, name: name2, names: typeof herdr.layouts === "function" ? herdr.layouts() || [] : [], props: this.props, missing: this.missingMods || [] });
   }
   restore(contract = this.contract()) {
     try {
@@ -6169,8 +6179,30 @@ var MissionControlTabs = class extends View {
     }).child(text9);
     return v_flex3().id("mc-restart-panel").size_full().p(10).gap(6).bg(t.surface).text_size(12).text_color(t.foreground).overflow_y_scrollbar().child(h_flex4().gap(8).items_center().child(div4().flex_1().text_size(12.5).child("From before the restart")).when(list.length > 0, (e) => e.child(link("mc-restart-resume-all", "Resume all", (cx) => this.resumeOffers(cx))).child(link("mc-restart-dismiss-all", "Dismiss", (cx) => this.dismissOffers(cx))))).when(!list.length, (e) => e.child(div4().id("mc-restart-empty").text_size(11).text_color(t.dim).child("Nothing to resume. Agents that were running when their terminal was lost show here when they could not be resumed by themselves."))).children(list.map((o, i) => h_flex4().id("mc-restart-offer-" + i).min_h(36).px(8).gap(8).items_center().rounded(6).border(1).border_color(t.border).child(v_flex3().flex_1().min_w(0).child(div4().truncate().child(o.line)).child(div4().truncate().text_size(10.5).text_color(t.dim).child([o.machine || "This Mac", o.reason].filter(Boolean).join(" · ")))).child(link("mc-restart-resume-" + i, "Resume", (cx) => this.resumeOffers(cx, o))).child(link("mc-restart-dismiss-" + i, "Dismiss", (cx) => this.dismissOffers(cx, o))))).children(this.codexRows(t)).when(Boolean(this.restartStatus), (e) => e.child(div4().id("mc-restart-status").text_size(10.5).text_color(t.muted).child(this.restartStatus)));
   }
+  /** Whether the mods other tools install (work-tracker's view) are in the app home, once a minute. */
+  checkExternal(cx, now3) {
+    if (now3 - (this.externalAt || 0) < TIMING.externalMs) return;
+    this.externalAt = now3;
+    this.spawn(cx, async () => {
+      const missing = [];
+      for (const s of EXTERNAL_SOURCES) {
+        let text9 = null;
+        try {
+          text9 = await herdr.readTextFile(herdr.appHome() + "/mods/" + s.mod + "/main.js");
+        } catch {
+          text9 = null;
+        }
+        if (text9 === null) missing.push(s.mod);
+      }
+      const changed = JSON.stringify(missing) !== JSON.stringify(this.missingMods || []);
+      this.missingMods = missing;
+      return !this.closed && changed;
+    });
+  }
   tick(cx) {
-    if (this.closed || !this.service) return;
+    if (this.closed) return;
+    this.checkExternal(cx, Date.now());
+    if (!this.service) return;
     const now3 = Date.now();
     this.restoreOnLayoutChange();
     this.takeRequest(cx);
@@ -6487,7 +6519,10 @@ var MissionControlTabs = class extends View {
     if (this.dialog) return this.dialog.render(cx);
     if (this.role === "sources") return this.sourcesPanel();
     if (this.role === "topbar") return this.topbar(cx);
-    if (this.role === "navigation") return this.navigation();
+    if (this.role === "navigation") {
+      this.checkExternal(cx, Date.now());
+      return this.navigation();
+    }
     if (this.role === "context") return this.contextMenu();
     if (this.role === "restart") return this.restartPanel();
     const t = colors();

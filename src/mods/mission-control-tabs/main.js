@@ -19,7 +19,7 @@ import {ReopenController} from '../../shared/reopen.js';
 import {RestartRunner,RUNNER} from '../../shared/restart-runner.js';
 import {displayLabel,folderName,NAME_LIMITS} from '../../shared/tab-names.js';
 import {colors,icon,iconButton,safeArtworkPath} from '../../shared/ui.js';
-import {NODES,SOURCES,NAV_STATE,NAV_TIMING,SOURCES_STATE,layoutContract,scopeOf,selectSource,swapView,togglePanel,restoreView,renderNavigation,renderSwap,renderPanelToggle,hiddenSources,setSourceShown,sourceState,renderSourceButtons} from './navigation.js';
+import {EXTERNAL_SOURCES,NODES,SOURCES,NAV_STATE,NAV_TIMING,SOURCES_STATE,layoutContract,scopeOf,selectSource,swapView,togglePanel,restoreView,renderNavigation,renderSwap,renderPanelToggle,hiddenSources,setSourceShown,sourceState,renderSourceButtons} from './navigation.js';
 
 export const MOD='mission-control-tabs';
 /** Versioned shared keys: a context-menu request for the bar, and key-command de-duplication across copies. */
@@ -28,10 +28,10 @@ export const VIEWS=Object.freeze(['topbar','navigation','menu','launch','setting
 /** keys.json actions: "mission-control-tabs.<command>". None is bound by default. */
 export const COMMANDS=Object.freeze(['new','settings','sources','reopen-tab','reopen-agent','swap','panel','rename','automatic-name','close',...SOURCES.map(s=>'source-'+s.id)]);
 /** Every in-flight flag is a timestamp with a staleness bound: an interrupted task never clears its own. */
-export const TIMING=Object.freeze({tickMs:1000,tickStaleMs:20000,pressMs:6000,closeMs:10000,reopenStaleMs:95000,requestMs:5000,namesMs:60000,wheelMs:160,commandMs:750,reopenReadMs:2000});
+export const TIMING=Object.freeze({tickMs:1000,tickStaleMs:20000,pressMs:6000,closeMs:10000,reopenStaleMs:95000,requestMs:5000,namesMs:60000,wheelMs:160,commandMs:750,reopenReadMs:2000,externalMs:60000});
 export const STATUS=Object.freeze({working:'Working',blocked:'Needs input',done:'Done',idle:'Idle'});
 /** Every local artwork name this mod draws, its own views and the bundled agent menu alike. */
-export const ICONS=Object.freeze(['agent','branch','close','folder','github','gitlab','jira','layout','more','panel','pin','plus','priority','pull-request','refresh','review','search','sessions','settings','shortcut']);
+export const ICONS=Object.freeze(['agent','branch','close','folder','github','gitlab','jira','layout','more','panel','pin','plus','priority','pull-request','refresh','review','search','sessions','settings','shortcut','tracker']);
 const TOPBAR_WIDE=720,DIALOG_VIEWS=new Set(['menu','launch','settings']);
 const plain=v=>v!==null&&typeof v==='object'&&!Array.isArray(v);
 const randomId=prefix=>prefix+'-'+Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
@@ -82,7 +82,8 @@ export default class MissionControlTabs extends View {
     this.props=herdr.props()||{};this.role=viewRole(this.props);this.closed=false;this.jobs=[];this.timers=[];this.width=null;this.instance=Date.now().toString(36)+'-'+Math.random().toString(36).slice(2,8);
     if(DIALOG_VIEWS.has(this.role)){this.dialog=new LaunchDialog(MOD,this.props,herdr);this.dialog.init(cx);return;}
     // setShared re-renders every mod, so the strip follows a changed source choice without a timer.
-    if(this.role==='navigation')return this.restore();
+    // The strip has no timer: it checks for external mods when it renders, at most once a minute.
+    if(this.role==='navigation'){this.checkExternal(cx,Date.now());return this.restore();}
     // The Sources gear and the restart popup read the resume-after-restart journal; only the top bar observes.
     if(this.role==='sources'||this.role==='restart'){this.restartStatus=null;try{this.restart=new RestartRunner(createLaunchIO(herdr),{owner:MOD+'-'+this.instance+'-restart-view'});this.spawn(cx,async()=>{await this.restart.refresh();await this.restart.refreshCodex();return !this.closed;});}catch{}return;}
     if(this.role!=='topbar')return;
@@ -104,7 +105,7 @@ export default class MissionControlTabs extends View {
   }
   contract(tree=herdr.layout()){
     let name=null;try{name=herdr.shared('layout');}catch{}
-    return layoutContract({tree,name,names:typeof herdr.layouts==='function'?herdr.layouts()||[]:[],props:this.props});
+    return layoutContract({tree,name,names:typeof herdr.layouts==='function'?herdr.layouts()||[]:[],props:this.props,missing:this.missingMods||[]});
   }
   restore(contract=this.contract()){try{this.restoredFor=JSON.stringify([contract?.name??null,Boolean(contract?.stack)]);restoreView({contract,sharedFn:herdr.shared,setSharedFn:herdr.setShared,runFn:herdr.run,focused:herdr.focused?.()??null,spaces:herdr.spaces()||[]});}catch{}}
   /** Herdr can keep this bar across a layout switch or start it before the new stack exists: restore once per layout and stack. */
@@ -151,8 +152,17 @@ export default class MissionControlTabs extends View {
       .children(this.codexRows(t))
       .when(Boolean(this.restartStatus),e=>e.child(div().id('mc-restart-status').text_size(10.5).text_color(t.muted).child(this.restartStatus)));
   }
+  /** Whether the mods other tools install (work-tracker's view) are in the app home, once a minute. */
+  checkExternal(cx,now){
+    if(now-(this.externalAt||0)<TIMING.externalMs)return;this.externalAt=now;
+    this.spawn(cx,async()=>{
+      const missing=[];
+      for(const s of EXTERNAL_SOURCES){let text=null;try{text=await herdr.readTextFile(herdr.appHome()+'/mods/'+s.mod+'/main.js');}catch{text=null;}if(text===null)missing.push(s.mod);}
+      const changed=JSON.stringify(missing)!==JSON.stringify(this.missingMods||[]);this.missingMods=missing;return !this.closed&&changed;
+    });
+  }
   tick(cx){
-    if(this.closed||!this.service)return;const now=Date.now();this.restoreOnLayoutChange();this.takeRequest(cx);this.restartTick(cx,now);
+    if(this.closed)return;this.checkExternal(cx,Date.now());if(!this.service)return;const now=Date.now();this.restoreOnLayoutChange();this.takeRequest(cx);this.restartTick(cx,now);
     if(now-this.namesAt>=TIMING.namesMs){this.namesAt=now;this.spawn(cx,async()=>{const tools=await herdr.knownAgents({on:null});if(!this.closed&&Array.isArray(tools))this.service.setKnownNames(tools.map(t=>t?.name));return false;});}
     // The Reopen buttons read closed history directly, so a copy whose service pass is stuck or not recording never shows a stale "last" record.
     if(this.reopen&&!this.reopen.running()&&now-(this.reopenReadAt||0)>=TIMING.reopenReadMs){this.reopenReadAt=now;const before=this.reopen.value?.revision??null;this.spawn(cx,async()=>{await this.reopen.refresh();return !this.closed&&(this.reopen.value?.revision??null)!==before;});}
@@ -356,7 +366,7 @@ export default class MissionControlTabs extends View {
     if(this.dialog)return this.dialog.render(cx);
     if(this.role==='sources')return this.sourcesPanel();
     if(this.role==='topbar')return this.topbar(cx);
-    if(this.role==='navigation')return this.navigation();
+    if(this.role==='navigation'){this.checkExternal(cx,Date.now());return this.navigation();}
     if(this.role==='context')return this.contextMenu();
     if(this.role==='restart')return this.restartPanel();
     const t=colors();return div().id('tabs-unknown-view').size_full().p(8).bg(t.chrome).text_size(11).text_color(t.blocked).child(`Unknown Mission Control tabs view "${String(this.props.view).slice(0,40)}". Use topbar or navigation.`);

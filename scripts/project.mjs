@@ -4,6 +4,7 @@ import crypto from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { build, transform } from 'esbuild';
+import { isExternalMod } from './external-mods.mjs';
 
 export const PROJECT_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const NATIVE_MODULES = new Set(['gpui-kit', 'gpui-base', 'herdr']);
@@ -225,7 +226,11 @@ export async function bundleLayouts({ root = PROJECT_ROOT } = {}) {
     catch { throw new Error(`Malformed layout SVG: ${name}`); }
     const visit = value => {
       if (!value || typeof value !== 'object') return;
-      if (typeof value.mod === 'string' && value.mod.startsWith('mission-control-')) required.add(packageName(value.mod));
+      // Every other mod a layout names is built here; a declared external mod is never bundled.
+      if (typeof value.mod === 'string' && !isExternalMod(value.mod)) {
+        if (!NAME.test(value.mod)) throw new Error(`Layout ${name} uses ${value.mod}, which is neither a Mission Control mod nor declared in EXTERNAL_MODS`);
+        required.add(value.mod);
+      }
       for (const child of Object.values(value)) if (Array.isArray(child)) child.forEach(visit); else visit(child);
     };
     visit(tree);

@@ -32,13 +32,14 @@
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
+    "assets/tracker.svg": "5ff3ced7bf6e88edc7299d0ea3119d68ef856f86b6684fcd3adb2c53197064aa",
     "backend.mjs": "828e96a865ba51a017ed734eb64335215d4a8412eefa4a87d958b6e66e28f61e",
     "main.js": "ec82a048d58b6cba7f8774549624447ccc904240db682d2c7eaa01451fe6e199",
     "mod.json": "0465ac8f0599cf876bd27a29dec75eb3ffea9a1a3713889df29a95116af944ef",
-    "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
+    "NOTICE.md": "1292316c5526b1e7951d8d2cb6be80fa7165fc74c17c47f57bd20b2989535cf2"
   },
   "sources": {
-    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
+    "src/assets/icons.json": "6e2d9ddd2e3f9a37c1d9305570da0d16db0b20b27c74880409b537692b9fb3e8",
     "src/mods/mission-control-github/backend.mjs": "0e09b062f208594816761c3d53148a3ec7bf84fa0854d82a049183959d72acd3",
     "src/mods/mission-control-github/data.js": "5eb600f91cf80f02f21faf40ae4890e1356e78f41143ade6e238160e955e3310",
     "src/mods/mission-control-github/issues.mjs": "bca88463530b6e518a775973ff4f92c80fad6f82a60f4f3bd2f3f550e96a149a",

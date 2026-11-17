@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 await import('./support/native-loader.mjs');
 const tabs=await import('../src/mods/mission-control-tabs/main.js');
 const nav=await import('../src/mods/mission-control-tabs/navigation.js');
+const {EXTERNAL_MODS,isExternalMod}=await import('../scripts/external-mods.mjs');
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..'),layoutsDir=path.join(root,'src/layouts'),modsDir=path.join(root,'src/mods');
 const NAMES=Object.freeze(Object.keys(nav.LAYOUT_PAIR)),CLASSIC='mission-control-classic',INSTALLED=['main',...NAMES];
@@ -116,7 +117,7 @@ export function checkLayout(tree,{name,registry=REGISTRY,layouts=INSTALLED}={}){
       const role=mod.roleOf(ref.props);
       if(!mod.roles.has(role))fail('UNKNOWN_ROLE',ref.trail,`${ref.mod} does not accept role ${role}`);
       else if(!mod.blockRoles.has(role))fail('OVERLAY_ROLE',ref.trail,`${ref.mod} role ${role} is an overlay/internal role, not a layout block`);
-    }else if(!SHIPPED.has(ref.mod))fail('UNKNOWN_MOD',ref.trail,`${ref.mod} is neither a Mission Control mod nor a shipped Herdr mod`);
+    }else if(!SHIPPED.has(ref.mod)&&!isExternalMod(ref.mod))fail('UNKNOWN_MOD',ref.trail,`${ref.mod} is neither a Mission Control mod, a shipped Herdr mod nor a declared external mod`);
     else if(STRIPS.has(ref.mod))fail('SECOND_STRIP',ref.trail,`shipped ${ref.mod} is a second tab strip`);
   }
   // Root look and preview.
@@ -195,7 +196,7 @@ test('the derived mod contracts know every role the layouts and navigation use',
   assert.deepEqual([...t.dialog].sort(),['launch','menu','settings']);assert.ok(t.overlay.has('context'));
   assert.ok(REGISTRY.get('mission-control-agent-menu').dialogOnly,'the agent menu is only its own dialog');
   assert.ok(REGISTRY.get('mission-control-agents').internal.has('unavailable'));
-  for(const s of nav.SOURCES){const m=REGISTRY.get(s.mod);assert.ok(m&&m.blockRoles.has(m.roleOf(s.props)),`${s.id}: ${s.mod} accepts its navigation props`);}
+  for(const s of nav.SOURCES){if(s.external){assert.ok(isExternalMod(s.mod)&&!REGISTRY.has(s.mod),`${s.id}: ${s.mod} is a declared external mod, not one built here`);continue;}const m=REGISTRY.get(s.mod);assert.ok(m&&m.blockRoles.has(m.roleOf(s.props)),`${s.id}: ${s.mod} accepts its navigation props`);}
   assert.deepEqual(['issues','merges'].map(view=>REGISTRY.get('mission-control-gitlab').roleOf({view,hideHeader:true})),['panel','merges']);
   assert.throws(()=>modContract('x',"init(){this.role=globalThis.view||'panel';}"),/unsupported role expression/);
 });
@@ -218,7 +219,7 @@ test('exactly one topmost tab bar, swapping to the other layout with traffic-lig
     assert.equal(findAll(tree,n=>n.header!==undefined).length,0,'no stack header strip');
     assert.equal(tabs.leftOffset(tree,tabs.isTopbarBlock),0,'the bar spans the full window width');
     assert.equal(tabs.lightsPadding({win:{platform:'macos',titlebar:'none',fullscreen:false},tree}),tree.traffic_lights[0]+64);
-    // The tab bar's own reading of this tree: swap target, panel control and all nine sources.
+    // The tab bar's own reading of this tree: swap target, panel control and all ten sources.
     const c=nav.layoutContract({tree,name,names:INSTALLED,props:bar.content.props});
     assert.deepEqual({main:c.main,stack:c.stack,children:c.children,active:c.active,panel:c.panel,panelControl:c.panelControl,swap:c.swap},
       {main:true,stack:true,children:[...nav.SOURCE_IDS],active:'jira',panel:classic?{hidden:true}:null,panelControl:classic,swap:{enabled:true,to:nav.LAYOUT_PAIR[name],label:nav.LAYOUT_LABELS[nav.LAYOUT_PAIR[name]]}});
@@ -226,15 +227,15 @@ test('exactly one topmost tab bar, swapping to the other layout with traffic-lig
   }
 });
 
-test('both layouts mount mc-main and the same nine-source mc-work-stack; Classic starts with the panel hidden',()=>{
+test('both layouts mount mc-main and the same ten-source mc-work-stack; Classic starts with the panel hidden',()=>{
   for(const name of NAMES){
     const {tree}=LAYOUTS[name],stack=findId(tree,'mc-work-stack');
     assert.ok(findId(tree,'mc-main'));assert.equal(stack.node.header,undefined);
     assert.deepEqual(stack.node.children.map(c=>[c.id,c.content]),nav.SOURCES.map(s=>[s.id,{mod:s.mod,props:{...s.props}}]));
     assert.deepEqual(stack.node.children.filter(c=>c.content.mod==='mission-control-gitlab').map(c=>c.content.props),[{view:'issues',hideHeader:true},{view:'merges',hideHeader:true}]);
     assert.deepEqual(stack.parent.children[stack.index-1].content,{mod:tabs.MOD,props:{view:'navigation'}});
-    assert.deepEqual(stack.node.children.map(c=>c.id),['jira','github','pulls','reviews','gitlab','merges','shortcut','sessions','control-panel'],'nine sources in navigation order');
-    assert.ok(stack.node.children.every(c=>c.content.props.hideHeader===true),'every embedded source hides its own heading');
+    assert.deepEqual(stack.node.children.map(c=>c.id),['jira','github','pulls','reviews','tracker','gitlab','merges','shortcut','sessions','control-panel'],'ten sources in navigation order');
+    assert.ok(stack.node.children.every(c=>c.content.mod==='work-tracker'?c.content.props.layoutFramed===true:c.content.props.hideHeader===true),'every embedded source hides its own heading; work-tracker’s view drops its own frame');
   }
   const panel=findId(LAYOUTS[CLASSIC].tree,'mc-work-panel').node;
   assert.equal(panel.hidden,true);assert.deepEqual(panel.children.map(c=>c.id),['mc-navigation','mc-work-stack']);
@@ -262,13 +263,13 @@ test('preview paths resolve to the existing Settings SVGs beside each installed 
     assert.ok(fs.statSync(svg).isFile()&&!fs.lstatSync(svg).isSymbolicLink());assert.match(text,/^\s*<svg[\s>]/);assert.match(text,new RegExp(`data-view="${name}"`));
   }
   const slots=[...fs.readFileSync(path.join(layoutsDir,'mission-control.svg'),'utf8').matchAll(/data-source="([a-z-]+)"/g)].map(m=>m[1]);
-  assert.deepEqual(slots,[...nav.SOURCE_IDS],'the overview artwork depicts the same nine sources');
+  assert.deepEqual(slots,[...nav.SOURCE_IDS],'the overview artwork depicts the same ten sources');
 });
 
-test('the nine sources stay reachable at 1024 and 736 px with a 220 px rail; Classic keeps terminal room',()=>{
+test('the ten sources stay reachable at 1024 and 736 px with a 220 px rail; Classic keeps terminal room',()=>{
   for(const width of [1024,736]){
     const mc=widthsAt(LAYOUTS['mission-control'].tree,width).get('mc-navigation');
-    assert.ok(mc>=nav.navigationMinWidth(),`overview navigation ${mc}px at ${width}`);assert.equal(nav.navigationMode(mc),width>=1024?'short':'icons',width>=1024?`nine whole short labels at ${width}px`:`nine accessible icon controls at ${width}px`);
+    assert.ok(mc>=nav.navigationMinWidth(),`overview navigation ${mc}px at ${width}`);assert.equal(nav.navigationMode(mc),width>=1024?'compact':'icons',width>=1024?`ten whole short labels, tighter padding, at ${width}px`:`ten accessible icon controls at ${width}px`);
     const open=widthsAt(LAYOUTS[CLASSIC].tree,width,{open:['mc-work-panel']}),closed=widthsAt(LAYOUTS[CLASSIC].tree,width);
     assert.ok(open.get('mc-navigation')>=nav.navigationMinWidth({panel:true}),`panel navigation at ${width}`);
     assert.ok(open.get('mc-terminals')>100&&closed.get('mc-terminals')>open.get('mc-terminals'),`Classic terminals ${open.get('mc-terminals')}/${closed.get('mc-terminals')}px at ${width}`);
@@ -280,7 +281,8 @@ test('the bundle collects exactly the referenced Mission Control mods, all prese
   assert.deepEqual([...required].sort(),['mission-control-agents','mission-control-control-panel','mission-control-github','mission-control-gitlab','mission-control-jira','mission-control-reviews','mission-control-sessions','mission-control-shortcut','mission-control-spaces','mission-control-tabs']);
   for(const mod of required)assert.ok(REGISTRY.has(mod),mod);
   const shipped=new Set();for(const name of NAMES)for(const r of modRefs(LAYOUTS[name].tree))if(!r.mod.startsWith('mission-control-'))shipped.add(r.mod);
-  assert.deepEqual([...shipped],['pane'],'only the shipped pane header is used, read-only');
+  assert.deepEqual([...shipped].sort(),['pane','work-tracker'],'only the declared external mods: Herdr’s pane header and work-tracker’s view');
+  for(const mod of shipped)assert.ok(isExternalMod(mod)&&Object.keys(EXTERNAL_MODS).includes(mod),mod);
 });
 
 test('the checker rejects invalid references, roles and structure',()=>{

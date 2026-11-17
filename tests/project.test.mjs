@@ -128,6 +128,23 @@ test('layout bundle copies exact standalone bytes and installed Settings SVGs', 
   assert.ok(await fs.stat(path.join(result.directory, 'layouts/mission-control.svg')));
 });
 
+test('layout bundle never builds a declared external mod and refuses an undeclared one', async t => {
+  const { root } = await fixture(t);
+  await fs.mkdir(path.join(root, 'src/layouts'));
+  const write = async extra => { for (const view of ['mission-control', 'mission-control-classic']) {
+    await fs.writeFile(path.join(root, `src/layouts/${view}.json`), JSON.stringify({ type: 'column', preview: `layouts/${view}.svg`, children: [{ type: 'block', content: { mod: name } }, { type: 'block', content: { mod: extra } }] }));
+    await fs.writeFile(path.join(root, `src/layouts/${view}.svg`), '<svg xmlns="http://www.w3.org/2000/svg"></svg>');
+  } };
+  for (const external of ['work-tracker', 'pane']) {
+    await write(external);
+    const result = await bundleLayouts({ root });
+    assert.deepEqual(result.mods, [name], external + ' is not built');
+    await assert.rejects(fs.access(path.join(result.directory, 'mods', external)), external + ' is not copied');
+  }
+  await write('someone-elses-mod');
+  await assert.rejects(bundleLayouts({ root }), /someone-elses-mod, which is neither a Mission Control mod nor declared in EXTERNAL_MODS/);
+});
+
 test('private state and browser artifacts are excluded without hiding distributable assets', () => {
   for (const file of ['.browse/sessions/a/frame.png', '.env', '.env.local', 'mods/a/auth.json', 'evidence/session-bindings.json', 'a/.DS_Store', 'sessions/x.jsonl', 'mission-control-jira/.build-123/previous/main.js', '.layout-build-123/previous/preview.png']) assert.equal(publishablePath(file), false, file);
   for (const file of ['mission-control/preview.png', 'mission-control-jira/mods/mission-control-jira/main.js', 'mission-control-jira/mods/mission-control-jira/assets/jira.svg', '.ulpi/plans/mission-control.json']) assert.equal(publishablePath(file), true, file);

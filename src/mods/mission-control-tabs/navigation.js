@@ -7,7 +7,7 @@
  *                  Mission Control view; without it the swap is disabled.
  *   mc-work-panel  Classic only: the side panel column [navigation block, mc-work-stack], hidden
  *                  at first. Its presence enables the panel toggle and the panel's hide button.
- *   mc-work-stack  a stack whose children are SOURCES ids (jira, github, pulls, reviews, gitlab,
+ *   mc-work-stack  a stack whose children are SOURCES ids (jira, github, pulls, reviews, tracker, gitlab,
  *                  merges, shortcut, sessions, control-panel), each a block with that source's `mod` and `props` below.
  *
  * Every action here takes its effects (run, shared, setShared) as arguments, so it holds no cx and
@@ -36,6 +36,8 @@ export const SOURCES=freeze([
   {id:'pulls',label:'Pull requests',short:'PRs',icon:'pull-request',mod:'mission-control-github',props:{view:'pulls',hideHeader:true},scopeKey:'mission-control-github-prs-ui-v1'},
   // Review requests come from every repository the gh account can see, never one space.
   {id:'reviews',label:'Reviews',short:'Reviews',icon:'review',mod:'mission-control-reviews',props:{view:'panel',hideHeader:true},scopeKey:null,fixedScope:'all',caption:'All repositories'},
+  // work-tracker installs and updates its own mod (`tracker install-mod`); it follows the focused agent, not a space.
+  {id:'tracker',label:'Tracker',short:'Tracker',icon:'tracker',mod:'work-tracker',props:{layoutFramed:true},scopeKey:null,fixedScope:'all',caption:'Focused agent',external:{install:'tracker install-mod'}},
   {id:'gitlab',label:'GitLab issues',short:'GitLab',icon:'gitlab',mod:'mission-control-gitlab',props:{view:'issues',hideHeader:true},scopeKey:'mission-control-gitlab-ui-v1'},
   {id:'merges',label:'Merge requests',short:'MRs',icon:'branch',mod:'mission-control-gitlab',props:{view:'merges',hideHeader:true},scopeKey:'mission-control-gitlab-mrs-ui-v1'},
   {id:'shortcut',label:'Shortcut',short:'Shortcut',icon:'shortcut',mod:'mission-control-shortcut',props:{view:'panel',hideHeader:true},scopeKey:'mission-control-shortcut-ui-v1'},
@@ -45,6 +47,8 @@ export const SOURCES=freeze([
 ]);
 export const SOURCE_IDS=freeze(SOURCES.map(s=>s.id));
 const BY_ID=new Map(SOURCES.map(s=>[s.id,s]));
+/** Sources whose mod another tool installs; the tab bar checks they exist so a missing one says how to get it. */
+export const EXTERNAL_SOURCES=freeze(SOURCES.filter(s=>s.external));
 /** The turned-off source ids, ignoring anything unknown or malformed. */
 export function hiddenSources(sharedFn){
   let v=null;try{v=typeof sharedFn==='function'?sharedFn(SOURCES_STATE):null;}catch{}
@@ -81,7 +85,7 @@ const swapLabel=name=>LAYOUT_LABELS[name]||'the other view';
  *   tree: layout(); name: shared('layout'); names: layouts(); props: this copy's props
  *   (swapTo names the other view explicitly; panel:true asks for the panel toggle).
  */
-export function layoutContract({tree=null,name=null,names=[],props={}}={}){
+export function layoutContract({tree=null,name=null,names=[],props={},missing=[]}={}){
   const main=findNode(tree,NODES.main),panel=findNode(tree,NODES.panel),node=findNode(tree,NODES.stack);
   const stack=node&&node.type==='stack'&&Array.isArray(node.children)?node:null;
   const ids=stack?stack.children.map(c=>plain(c)&&typeof c.id==='string'?c.id:null).filter(Boolean):[];
@@ -95,7 +99,8 @@ export function layoutContract({tree=null,name=null,names=[],props={}}={}){
   else swap={enabled:true,to,label:swapLabel(to)};
   return freeze({name:shown,main:Boolean(main),stack:Boolean(stack),children,active,
     stackReason:stack?null:node?'mc-work-stack is not a stack.':'this layout has no work stack (mc-work-stack).',
-    panel:plain(panel)?{hidden:panel.hidden===true}:null,panelControl:Boolean(panel)||props?.panel===true,swap});
+    panel:plain(panel)?{hidden:panel.hidden===true}:null,panelControl:Boolean(panel)||props?.panel===true,swap,
+    missing:Array.isArray(missing)?EXTERNAL_SOURCES.map(s=>s.mod).filter(mod=>missing.includes(mod)):[]});
 }
 /** Per-source availability for the navigation strip. */
 export function sourceState(contract,id,hidden=null){
@@ -103,6 +108,7 @@ export function sourceState(contract,id,hidden=null){
   if(hidden?.has(id))return {enabled:false,hidden:true,reason:'Turned off in Mission Control sources (the gear in the tab bar).'};
   if(!contract?.stack)return {enabled:false,reason:'Unavailable: '+(contract?.stackReason||'this layout has no work stack (mc-work-stack).')};
   if(!contract.children.includes(id))return {enabled:false,reason:'Not in this layout.'};
+  const s=BY_ID.get(id);if(s.external&&contract.missing?.includes(s.mod))return {enabled:false,missing:true,reason:`${s.label} is not installed. Install it with \`${s.external.install}\`.`};
   return {enabled:true,reason:null};
 }
 
@@ -202,13 +208,15 @@ function sourceButton(mod,source,{mode,selected,state,onSelect}){
 export function renderNavigation({mod,contract,width=null,scope=null,spaceName=null,hidden=new Set(),onSelect,onHide,onSize}){
   const t=colors(),panel=Boolean(contract.panel),shown=SOURCES.filter(s=>!hidden.has(s.id)),mode=navigationMode(width,{panel,sources:shown});
   const room=Number.isFinite(width)?width-navigationWidth(mode,{panel,sources:shown}):0;
-  const caption=!contract.stack?'Work sources unavailable: '+contract.stackReason:!shown.length?'Every work source is turned off. Turn one on with the gear in the tab bar.':contract.active&&!hidden.has(contract.active)?BY_ID.get(contract.active)?.caption?BY_ID.get(contract.active).caption:scope==='all'?'All spaces':['This space',spaceName].filter(Boolean).join(' · '):null;
+  // A shown source whose mod is not installed says how to install it, instead of leaving a blank panel.
+  const missing=contract.active&&!hidden.has(contract.active)?sourceState(contract,contract.active,hidden).missing===true:false;
+  const caption=!contract.stack?'Work sources unavailable: '+contract.stackReason:missing?sourceState(contract,contract.active,hidden).reason:!shown.length?'Every work source is turned off. Turn one on with the gear in the tab bar.':contract.active&&!hidden.has(contract.active)?BY_ID.get(contract.active)?.caption?BY_ID.get(contract.active).caption:scope==='all'?'All spaces':['This space',spaceName].filter(Boolean).join(' · '):null;
   let group=h_flex().id('work-sources').flex_1().min_w(0).h_full().gap(NAV_METRICS.gap).items_center()
     .children(shown.map(s=>sourceButton(mod,s,{mode,selected:contract.active===s.id,state:sourceState(contract,s.id,hidden),onSelect})));
   if(!shown.length)group=group.child(div().id('source-caption').min_w(0).px(6).truncate().text_size(10.5).text_color(t.dim).tooltip(caption).child(caption));
   else if(mode!=='icons'){
     group=group.child(div().flex_1().min_w(0));
-    if(caption&&(!contract.stack||room>=NAV_METRICS.caption))group=group.child(div().id('source-caption').min_w(0).truncate().text_size(10.5).text_color(contract.stack?t.dim:t.blocked).tooltip(caption).child(caption));
+    if(caption&&(!contract.stack||room>=NAV_METRICS.caption))group=group.child(div().id('source-caption').min_w(0).truncate().text_size(10.5).text_color(contract.stack&&!missing?t.dim:t.blocked).tooltip(caption).child(caption));
   }
   let root=h_flex().id('mc-work-navigation').size_full().min_w(0).px(6).gap(NAV_METRICS.gap).items_center().bg(t.chrome).border_b(1).border_color(t.border)
     .role('tab_list').accessibility_label(contract.stack?'Work sources':'Work sources unavailable: '+contract.stackReason).on_size_change((size,cx)=>onSize?.(size,cx)).child(group);

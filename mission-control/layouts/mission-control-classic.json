@@ -211,6 +211,16 @@
                       }
                     },
                     {
+                      "id": "tracker",
+                      "type": "block",
+                      "content": {
+                        "mod": "work-tracker",
+                        "props": {
+                          "layoutFramed": true
+                        }
+                      }
+                    },
+                    {
                       "id": "gitlab",
                       "type": "block",
                       "content": {

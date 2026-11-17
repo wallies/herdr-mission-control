@@ -32,14 +32,15 @@
     "assets/shortcut.svg": "1d304784ac9c5d33e426d4e9eebc50e8adc465385ab41eb558c09b5731badaaa",
     "assets/spaces.svg": "01d3d618b27ef141c8251358657d7533abef2bbc40b447f53728c768fa4a593b",
     "assets/teleport.svg": "97e7b042e6fbd0664d1f48aaee75b0bbc724041c762fd502b7eff4d28d256071",
+    "assets/tracker.svg": "5ff3ced7bf6e88edc7299d0ea3119d68ef856f86b6684fcd3adb2c53197064aa",
     "backend.mjs": "22ea04f400246a4b7df02894a57d8f5f47d7f17e4a358b21991329120078a69a",
     "collector.py": "98f7a98ee3ee1f6b9cbd1da3c2ab941c92123c2168d6f5630be4da81ca8caf92",
     "main.js": "b28d13d4d369315d439be10229399e819bb5a3f56affec4d76026f2f4e0ee30e",
     "mod.json": "19f9c364e74121c1f44dabf649b90daadcdcbdc46ee5b813aa6275ecd312159d",
-    "NOTICE.md": "e3193814e62e00542e18f4bcaad723c9dd617cb3cd3830d0274b8a76fe8c95e2"
+    "NOTICE.md": "1292316c5526b1e7951d8d2cb6be80fa7165fc74c17c47f57bd20b2989535cf2"
   },
   "sources": {
-    "src/assets/icons.json": "f1f6128a4d23a8acab54c054f7201b966979f50b8ce68436a515f213eecd3a96",
+    "src/assets/icons.json": "6e2d9ddd2e3f9a37c1d9305570da0d16db0b20b27c74880409b537692b9fb3e8",
     "src/mods/mission-control-agents/backend.mjs": "cc1685a725e326407d9039e27f1aa35d9e13dbde84e316f1ef69a4505f714f5e",
     "src/mods/mission-control-agents/cloud-data.js": "274ba2e19986df24099300e13d13660e081bad4dcad04a06dfb4541c68fd82dd",
     "src/mods/mission-control-agents/cloud-rail.js": "464dbed28f05fb45cacad97c62d100a00f6b7e9c11bcc539fedbcbcbddf2739e",
