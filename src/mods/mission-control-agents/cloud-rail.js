@@ -7,7 +7,6 @@ import {CloudSessions} from './cloud-data.js';
 
 const MOD='mission-control-agents';
 const rowId=id=>'cloud-'+id;
-const opener=platform=>platform==='macos'?'open':platform==='windows'?'explorer.exe':'xdg-open';
 
 /**
  * Cloud sessions in the Agents rail, beside the local agents and separate from them. Owns its input
@@ -29,8 +28,9 @@ export class CloudRail{
   tick(cx){if(this.data.records.length&&this.data.connection&&this.data.due())return this.spawn(cx,async()=>{await this.data.refreshPulls();});}
   note(id,text,{error=false}={}){this.notes.set(id,{text,error});}
 
+  /** Herdr hands the session link to the system browser; no helper program is started. */
   open(record,cx){
-    return this.spawn(cx,async()=>{const result=await this.herdr.exec(opener(this.herdr.window().platform),[record.url]);if(result.code!==0)this.note(record.id,'The browser could not open this session.',{error:true});});
+    try{cx.open_url(record.url);}catch{this.note(record.id,'The browser could not open this session.',{error:true});cx.notify();}
   }
   toggleMessage(record,cx){
     if(this.boxes.has(record.id)){this.boxes.get(record.id).release();this.boxes.delete(record.id);}

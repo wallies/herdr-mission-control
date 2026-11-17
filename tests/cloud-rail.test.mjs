@@ -48,7 +48,9 @@ test('cloud rows show beside local agents with a cloud marker, title, repo and s
   assert.ok(findElement(row,'cloud-'+ID+'-message'));assert.ok(findElement(row,'cloud-'+ID+'-teleport'));assert.ok(findElement(row,'cloud-'+ID+'-remove'));
   const walk=(n,out=[])=>{if(n instanceof Element){if(n.kind==='svg')out.push(n.value);n.nodes.forEach(c=>walk(c,out));}return out;};assert.ok(walk(row).includes('mods/mission-control-agents/assets/cloud.svg'));
   assert.deepEqual(f.effects.findLast(e=>e[0]==='order')[1],['t1'],'cloud rows never join agent navigation');
-  trigger(tree,'cloud-'+ID,'on_click',{},f.cx);await f.flush();assert.deepEqual(f.effects.at(-1),['exec','open',['https://claude.ai/code/'+ID]]);
+  const opened=[],effects=f.effects.length;f.cx.open_url=url=>opened.push(url);
+  trigger(tree,'cloud-'+ID,'on_click',{},f.cx);await f.flush();assert.deepEqual(opened,['https://claude.ai/code/'+ID]);assert.ok(!f.effects.slice(effects).some(e=>e[0]==='exec'),'no helper program is started to open a link');
+  f.cx.open_url=()=>{throw Error('refused');};trigger(f.render(),'cloud-'+ID,'on_click',{},f.cx);await f.flush();assert.ok(texts(f.render()).includes('The browser could not open this session.'));
   f.view.close();
 });
 

@@ -689,7 +689,6 @@ var CloudSessions = class {
 // src/mods/mission-control-agents/cloud-rail.js
 var MOD = "mission-control-agents";
 var rowId = (id) => "cloud-" + id;
-var opener = (platform) => platform === "macos" ? "open" : platform === "windows" ? "explorer.exe" : "xdg-open";
 var CloudRail = class {
   constructor(herdr3, { spawn, clock = () => Date.now() }) {
     Object.assign(this, { herdr: herdr3, spawn, data: new CloudSessions(createConfigIO(herdr3), { clock }), adding: false, addError: null, boxes: /* @__PURE__ */ new Map(), notes: /* @__PURE__ */ new Map(), busy: /* @__PURE__ */ new Set(), seen: null });
@@ -722,11 +721,14 @@ var CloudRail = class {
   note(id, text7, { error: error2 = false } = {}) {
     this.notes.set(id, { text: text7, error: error2 });
   }
+  /** Herdr hands the session link to the system browser; no helper program is started. */
   open(record, cx) {
-    return this.spawn(cx, async () => {
-      const result = await this.herdr.exec(opener(this.herdr.window().platform), [record.url]);
-      if (result.code !== 0) this.note(record.id, "The browser could not open this session.", { error: true });
-    });
+    try {
+      cx.open_url(record.url);
+    } catch {
+      this.note(record.id, "The browser could not open this session.", { error: true });
+      cx.notify();
+    }
   }
   toggleMessage(record, cx) {
     if (this.boxes.has(record.id)) {

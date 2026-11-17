@@ -91,12 +91,13 @@ function makeContext(record,template){
     spawn(fn){usable(record);if(phaseFor(record)==='layout')throw Error('Tasks are forbidden during lazy layout');if(typeof fn!=='function')throw Error('Task body is required');const task={active:true,done:false};record.owner.tasks.add(task);let value;try{value=asyncScoped({owner:record.owner,task},fn,cx);}catch(error){value=Promise.reject(error);}const promise=Promise.resolve(value).then(result=>{task.done=true;record.owner.tasks.delete(task);return result;},error=>{task.done=true;record.owner.tasks.delete(task);throw error;});return {then:(...a)=>promise.then(...a),catch:(...a)=>promise.catch(...a),finally:(...a)=>promise.finally(...a),cancel(){task.active=false;},is_done:()=>task.done};},
     async sleep(ms=0){usable(record);if(!Number.isFinite(ms)||ms<0||phaseFor(record)==='layout')throw Error('Invalid native sleep');await record.owner.scheduleSleep(ms,record.owner.id);if(!record.owner.active||record.task?.active===false)throw Error('Recorded owner is closed');},
     timer:{every(){throw Error('Inject a timer scheduler explicitly for timer tests');}},
-    focus_handle(){effectAllowed(record);return {focus(){usable(record);}};}
-  };record.native={spawn:cx.spawn,stop_propagation:cx.stop_propagation,focus_handle:cx.focus_handle};record.overrides={};contexts.set(cx,record);
+    focus_handle(){effectAllowed(record);return {focus(){usable(record);}};},
+    open_url(){usable(record);throw Error('Inject open_url explicitly for link tests');}
+  };record.native={spawn:cx.spawn,stop_propagation:cx.stop_propagation,focus_handle:cx.focus_handle,open_url:cx.open_url};record.overrides={};contexts.set(cx,record);
   // Explicit fixture schedulers and propagation spies survive a new event
   // context; the event itself still expires and spawned work gets AsyncContext.
   if(template){const source=stateFor(template);if(ownerRoot(source.owner)!==ownerRoot(record.owner))throw Error('Foreign injected context');cx.timer=template.timer;
-    for(const name of ['stop_propagation','focus_handle'])if(template[name]!==source.native[name]){const original=source.overrides[name]??template[name];record.overrides[name]=original;cx[name]=(...args)=>{if(name==='focus_handle')effectAllowed(record);else usable(record);return original(...args);};}
+    for(const name of ['stop_propagation','focus_handle','open_url'])if(template[name]!==source.native[name]){const original=source.overrides[name]??template[name];record.overrides[name]=original;cx[name]=(...args)=>{if(name==='focus_handle')effectAllowed(record);else usable(record);return original(...args);};}
     if(template.spawn!==source.native.spawn){const original=source.overrides.spawn??template.spawn;record.overrides.spawn=original;cx.spawn=(body,opts)=>{usable(record);if(phaseFor(record)==='layout')throw Error('Tasks are forbidden during lazy layout');return original(()=>asyncScoped({owner:record.owner},body,cx),opts);};}
   }return cx;
 }
